@@ -1,0 +1,62 @@
+name: build-images
+
+# Triggered manually, or by core/profiles/webui's notify-image-builder.yml
+# calling this repo's workflow_dispatch API on every push to their main.
+#
+# Matrix covers "debian" (Phase 1) and "freebsd" (Phase 2) -- void/artix
+# stay excluded until their build.sh stubs (see void/, artix/) are real.
+# Runs on a self-hosted runner because loop devices + chroot (debian) and
+# QEMU/KVM + gpart/zpool (freebsd) all need privileged/device access
+# Codeberg's hosted runners don't grant -- see ../../docs/ci-setup.md
+# before expecting this to actually execute. The freebsd job additionally
+# needs qemu-system-x86_64 + expect on the runner (docs/ci-setup.md §3).
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: [self-hosted, image-builder]
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [debian, freebsd]
+    steps:
+      - name: Check out freedomnas-image-builder
+        uses: actions/checkout@v4
+        with:
+          path: freedomnas-image-builder
+
+      # Sibling checkouts -- build.sh expects freedomnas-core,
+      # freedomnas-profiles, freedomnas-webui next to this repo (same
+      # convention engine.py's dev-mode profile search uses).
+      - name: Check out freedomnas-core
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-core
+          path: freedomnas-core
+
+      - name: Check out freedomnas-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-profiles
+          path: freedomnas-profiles
+
+      - name: Check out freedomnas-webui
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-webui
+          path: freedomnas-webui
+
+      - name: Build ${{ matrix.edition }} image
+        run: |
+          chmod +x freedomnas-image-builder/${{ matrix.edition }}/build.sh
+          sudo freedomnas-image-builder/${{ matrix.edition }}/build.sh \
+            "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.edition }}.img" \
+            8G
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.edition }}-image
+          path: freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.edition }}.img.zst
+          retention-days: 14
