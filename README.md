@@ -7,14 +7,17 @@ instead of running an interactive installer. Each image is bootable on
 of [`debian/build.sh`](debian/build.sh) for how that's achieved without a
 live machine's UEFI NVRAM to register against.
 
-`freedomnas-installer` (the old dialog-TUI installer) is **parked**, not
-removed — see its README for status. This repo is the new primary path.
+This repo is the primary install path. `freedomnas-installer` is the
+secondary one — rewritten profile-driven per ADR-002's 2026-09-04 follow-up
+(clean install, or in-place onto a running system). The two are deliberately
+separate: this repo keeps its own shell build scripts, and both produce the
+same on-disk layout.
 
 ## Supported editions
 
 | Edition | Status | Init | Notes |
 |---------|--------|------|-------|
-| Debian (trixie) | **Phase 1 — implemented** | systemd | Ports the proven boot chain from the parked installer; runs directly on the Linux runner |
+| Debian (trixie) | **Phase 1 — implemented** | systemd | Ports the proven boot chain from the installer; runs directly on the Linux runner |
 | FreeBSD (14+) | **Phase 2 — implemented** | bsd_rc | Native boot chain (gptzfsboot/loader.efi, no UKI/Clover); build runs *inside* a QEMU-booted FreeBSD guest — see `freebsd/build.sh` header for why |
 | Void Linux | Phase 3 — stub | runit | "Exotic" edition — see `void/build.sh` header |
 | Artix Linux | Phase 3 — stub | OpenRC | "Exotic" edition — see `artix/build.sh` header |
@@ -57,7 +60,7 @@ git-projects/freedomnas/
 ├── freedomnas-core
 ├── freedomnas-profiles     (assets/clover, assets/zz-dracut-uki live here)
 ├── freedomnas-webui
-├── freedomnas-installer    (parked)
+├── freedomnas-installer
 └── freedomnas-image-builder
 ```
 
