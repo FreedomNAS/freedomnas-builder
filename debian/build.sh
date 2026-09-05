@@ -186,7 +186,7 @@ cat > "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh" <<'EOF'
 # FreedomNAS WebUI supervisor -- init-agnostic, circuit breaker after 5 failures.
 FAILURES=0
 MAX_FAILURES=5
-WEBUI_CMD="python3 -m uvicorn freedomnas_webui.api.main:app --host 0.0.0.0 --port 8080"
+WEBUI_CMD="python3 -m uvicorn --app-dir /usr/lib/freedomnas/webui api.main:app --host 0.0.0.0 --port 8080"
 
 while true; do
     $WEBUI_CMD
