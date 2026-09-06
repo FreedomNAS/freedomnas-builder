@@ -217,6 +217,17 @@ chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh"
 echo "@reboot root /usr/lib/freedomnas/webui/bin/firstboot.sh >> /var/log/freedomnas-webui.log 2>&1" \
     > "$MNT/etc/cron.d/freedomnas-webui"
 
+# Passwordless sudo for the administrators' group: the WebUI runs updates as
+# the signed-in user, and topgrade calls sudo itself for the steps needing
+# root. Same drop-in freedomnas-installer writes.
+mkdir -p "$MNT/etc/sudoers.d"
+printf '%s\n' \
+    '# FreedomNAS: the WebUI runs updates as the signed-in user,' \
+    '# and topgrade calls sudo itself for the steps that need root.' \
+    '%sudo ALL=(ALL) NOPASSWD: ALL' \
+    > "$MNT/etc/sudoers.d/freedomnas"
+chmod 0440 "$MNT/etc/sudoers.d/freedomnas"
+
 echo "=== Unmounting and compressing ==="
 umount "$MNT/boot/efi"
 for m in run sys proc dev/pts dev; do umount "$MNT/$m" 2>/dev/null || true; done

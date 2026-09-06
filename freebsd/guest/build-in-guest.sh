@@ -248,6 +248,17 @@ chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh"
 echo "@reboot root /usr/lib/freedomnas/webui/bin/firstboot.sh >> /var/log/freedomnas-webui.log 2>&1" \
     >> "$MNT/etc/crontab"
 
+# Passwordless sudo for the administrators' group: the WebUI runs updates as
+# the signed-in user, and topgrade calls sudo itself for the steps needing
+# root. FreeBSD keeps sudoers.d under /usr/local/etc, not /etc.
+mkdir -p "$MNT/usr/local/etc/sudoers.d"
+printf '%s\n' \
+    '# FreedomNAS: the WebUI runs updates as the signed-in user,' \
+    '# and topgrade calls sudo itself for the steps that need root.' \
+    '%wheel ALL=(ALL) NOPASSWD: ALL' \
+    > "$MNT/usr/local/etc/sudoers.d/freedomnas"
+chmod 0440 "$MNT/usr/local/etc/sudoers.d/freedomnas"
+
 log "=== Cleanup ==="
 umount "$MNT/boot/efi" || true
 # Marks the pool as a genuinely completed build. The VirtualBox backend
