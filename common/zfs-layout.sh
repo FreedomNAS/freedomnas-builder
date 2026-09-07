@@ -34,7 +34,7 @@ fnas_zfs_layout() {
     zpool set "bootfs=$pool/ROOT/$edition" "$pool"
 
     zfs mount "$pool/ROOT/$edition"
-    zfs mount --all
+    zfs mount -a
 
     echo "zfs-layout.sh: pool=$pool root=$pool/ROOT/$edition mounted at $mnt" >&2
 }
