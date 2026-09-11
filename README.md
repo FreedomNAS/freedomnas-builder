@@ -1,7 +1,7 @@
 # freedomnas-image-builder
 
 Builds the pre-built, flashable disk images that are FreedomNAS's primary
-install path per [ADR-002](../freedomnas-spec/IMAGE-BASED-INSTALLATION.md) — "flash and go"
+install path per [ADR-002](../freedomnas-specs/IMAGE-BASED-INSTALLATION.md) — "flash and go"
 instead of running an interactive installer. Each image is bootable on
 **both UEFI and BIOS from the same file**; see the design note at the top
 of [`debian/build.sh`](debian/build.sh) for how that's achieved without a
