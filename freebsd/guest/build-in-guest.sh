@@ -208,39 +208,11 @@ umount "$MNT/dev" || true
 
 log "=== [8/8] First-boot wiring (cron @reboot -- FreeBSD ships cron by default) ==="
 mkdir -p "$MNT/usr/lib/freedomnas/webui/bin"
-cp "$SEED/firstboot.sh" "$MNT/usr/lib/freedomnas/webui/bin/firstboot.sh"
-chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/firstboot.sh"
-
-cat > "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh" <<'EOF'
-#!/bin/sh
-# FreedomNAS WebUI supervisor -- init-agnostic, circuit breaker after 5 failures.
-FAILURES=0
-MAX_FAILURES=5
-WEBUI_DIR="/usr/lib/freedomnas/webui"
-WEBUI_CMD="python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8080"
-
-# The app mounts its static files and templates by relative path, so it has
-# to run from its own directory. `python3 -m` then puts that directory on
-# sys.path as well, which is what makes `api.main` importable.
-cd "$WEBUI_DIR" || exit 1
-
-while true; do
-    $WEBUI_CMD
-    EXIT=$?
-    if [ $EXIT -ne 0 ]; then
-        FAILURES=$((FAILURES + 1))
-        echo "[$(date)] WebUI exited with code $EXIT (failure $FAILURES/$MAX_FAILURES)"
-        if [ $FAILURES -ge $MAX_FAILURES ]; then
-            echo "[$(date)] Circuit breaker OPEN -- stopping supervisor"
-            exit 1
-        fi
-        sleep 5
-    else
-        FAILURES=0
-    fi
+# Staged by freebsd/build.sh from freedomnas-profiles/assets -- the same
+# scripts freedomnas-installer deploys.
+for script in firstboot.sh supervisor.sh; do
+    install -m 755 "$SEED/$script" "$MNT/usr/lib/freedomnas/webui/bin/$script"
 done
-EOF
-chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh"
 
 # FreeBSD's cron is vixie-cron heritage same as Debian's and supports the
 # same @reboot macro -- but (unlike Debian) there's no /etc/cron.d/ drop-in

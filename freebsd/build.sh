@@ -41,6 +41,7 @@ set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 COMMON_DIR="$SCRIPT_DIR/../common"
+ASSETS_DIR="$SCRIPT_DIR/../../freedomnas-profiles/assets"
 REPOS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 
 IMG_PATH="${1:-$SCRIPT_DIR/freebsd.img}"
@@ -74,7 +75,7 @@ trap cleanup EXIT
 echo "=== [1/4] Staging freedomnas-core/profiles/webui payload ==="
 fnas_install_core "$STAGE_DIR" "$REPOS_DIR"
 tar -cf "$SEED_DIR/fnas-payload.tar" -C "$STAGE_DIR/usr/lib/freedomnas" .
-cp "$COMMON_DIR/firstboot.sh" "$SEED_DIR/firstboot.sh"
+cp "$ASSETS_DIR/firstboot.sh" "$ASSETS_DIR/supervisor.sh" "$SEED_DIR/"
 cp "$SCRIPT_DIR/guest/build-in-guest.sh" "$SEED_DIR/build-in-guest.sh"
 # Env vars don't cross the VM boundary -- build-in-guest.sh sources this
 # instead of inheriting FREEBSD_RELEASE/FREEBSD_MIRROR directly.

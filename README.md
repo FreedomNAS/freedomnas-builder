@@ -78,13 +78,15 @@ packages and the Portage tree between runs. Allow about 15 GB.
 
 ```
 common/            Shared build-time function libraries (sourced by each
-                    edition's build.sh) + firstboot.sh, which gets baked
-                    into the image itself and runs at boot time. On every
-                    boot it imports pools, unlocks any encrypted ones
-                    (`python -m freedomnas unlock-pools` — USB zero-touch
-                    key, TTY passphrase fallback; see keymgmt.py in
-                    freedomnas-core), then reconciles or hands off to the
-                    WebUI's first-run wizard per ADR-002
+                    edition's build.sh). The boot-time scripts baked into
+                    the images -- firstboot.sh and supervisor.sh -- come
+                    from freedomnas-profiles/assets, the copies
+                    freedomnas-installer deploys too: firstboot.sh imports
+                    pools only to look for a .freedomnas dataset and
+                    releases the ones it did not need, unlocks encrypted
+                    pools (`python -m freedomnas unlock-pools`), then
+                    reconciles or hands off to the WebUI's first-run wizard
+                    per ADR-002
 debian/build.sh     Implemented — chroots directly on the Linux runner
 freebsd/            Implemented — QEMU-driven (see build.sh header)
   build.sh            Host-side orchestrator: stages the payload, boots

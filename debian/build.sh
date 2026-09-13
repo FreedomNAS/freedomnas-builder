@@ -178,39 +178,13 @@ PYEOF
 
 echo "=== [9/9] First-boot wiring + supervisor ==="
 mkdir -p "$MNT/usr/lib/freedomnas/webui/bin"
-cp "$COMMON_DIR/firstboot.sh" "$MNT/usr/lib/freedomnas/webui/bin/firstboot.sh"
-chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/firstboot.sh"
-
-cat > "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh" <<'EOF'
-#!/bin/sh
-# FreedomNAS WebUI supervisor -- init-agnostic, circuit breaker after 5 failures.
-FAILURES=0
-MAX_FAILURES=5
-WEBUI_DIR="/usr/lib/freedomnas/webui"
-WEBUI_CMD="python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8080"
-
-# The app mounts its static files and templates by relative path, so it has
-# to run from its own directory. `python3 -m` then puts that directory on
-# sys.path as well, which is what makes `api.main` importable.
-cd "$WEBUI_DIR" || exit 1
-
-while true; do
-    $WEBUI_CMD
-    EXIT=$?
-    if [ $EXIT -ne 0 ]; then
-        FAILURES=$((FAILURES + 1))
-        echo "[$(date)] WebUI exited with code $EXIT (failure $FAILURES/$MAX_FAILURES)"
-        if [ $FAILURES -ge $MAX_FAILURES ]; then
-            echo "[$(date)] Circuit breaker OPEN -- stopping supervisor"
-            exit 1
-        fi
-        sleep 5
-    else
-        FAILURES=0
-    fi
+# The same boot-time scripts freedomnas-installer deploys, from
+# freedomnas-profiles/assets: firstboot.sh releases every pool it imported
+# only to look for a .freedomnas dataset, and supervisor.sh serves the WebUI
+# over TLS once firstboot has generated the certificate.
+for script in firstboot.sh supervisor.sh; do
+    install -m 755 "$ASSETS_DIR/$script" "$MNT/usr/lib/freedomnas/webui/bin/$script"
 done
-EOF
-chmod 755 "$MNT/usr/lib/freedomnas/webui/bin/supervisor.sh"
 
 # cron now launches firstboot.sh (which execs into supervisor.sh itself)
 # instead of supervisor.sh directly -- this is the literal ADR-002 hook.
