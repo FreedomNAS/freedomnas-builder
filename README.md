@@ -22,6 +22,55 @@ same on-disk layout.
 | Void Linux | Phase 3 — stub | runit | "Exotic" edition — see `void/build.sh` header |
 | Artix Linux | Phase 3 — stub | OpenRC | "Exotic" edition — see `artix/build.sh` header |
 
+## Live installer ISO
+
+`live/build.sh` builds `freedomnas-live.iso`, a Gentoo live system that runs
+`freedomnas-install` and installs **every Linux edition** from one image. The
+installer offers a native bootstrap method only when that method's tool is
+present on the machine it runs on, so the ISO carries the tools:
+
+| Edition | Bootstrap offered by the ISO |
+|---------|------------------------------|
+| Debian | `debootstrap` (+ `debian-archive-keyring`), or tarball |
+| Void | `xbps-install` from Void's `xbps-static`, or tarball |
+| Gentoo | stage3 tarball |
+| Arch, Artix | tarball only, until pacman is packaged in `freedomnas-overlay` |
+
+The same file boots on UEFI and BIOS, from optical media or written to a
+USB stick with `dd`: `grub-mkrescue` produces a hybrid ISO (El Torito BIOS
+and EFI images, plus the MBR/GPT a USB boot needs). The root filesystem is
+a squashfs mounted by dracut's `dmsquash-live` with an overlayfs layer in
+RAM. On boot, root is logged in on tty1 and the installer starts; `dhcpcd`
+is enabled, `sshd` is installed but not started (root has no password).
+
+How it is built:
+
+1. The latest stage3 (`latest-stage3-amd64-openrc.txt`), verified with
+   Gentoo's release key — `/usr/share/openpgp-keys/gentoo-release.asc`
+   when present, otherwise downloaded from `qa-reports.gentoo.org`.
+2. Portage configuration rendered from `installer-gentoo.json`'s
+   `make_conf`, `binrepos_conf`, `package_use` and
+   `package_accept_keywords`, so the live system resolves packages the way
+   an installed Gentoo edition does. Packages come from the official
+   binary host wherever the flags match.
+3. `xbps-static`: the newest versioned tarball listed in Void's
+   `sha256sums.txt`, checked against it. The `latest` line in that file
+   has been seen lagging behind the file it names.
+4. Kernel (`gentoo-kernel-bin`), `linux-firmware`, ZFS, the installer,
+   core, profiles and WebUI from the sibling checkouts.
+
+```sh
+sudo ./live/build.sh [output.iso]     # default: live/freedomnas-live.iso
+```
+
+Host requirements: `curl`, `gpg`/`gpgv`, `tar`, `xz`, `python3`, `rsync`
+and `arch-chroot` (`sys-apps/arch-chroot` on Gentoo). GRUB with BIOS
+support, xorriso and mksquashfs are installed and run *inside* the build
+root, so the host needs none of them. Work happens under
+`/var/tmp/freedomnas-live` (`FNAS_LIVE_WORK` to move it): `root/` is
+recreated on every run, `cache/` keeps the stage3, distfiles, binary
+packages and the Portage tree between runs. Allow about 15 GB.
+
 ## Layout
 
 ```
@@ -41,6 +90,7 @@ freebsd/            Implemented — QEMU-driven (see build.sh header)
                       gpart/zpool/pkg/boot-chain provisioning logic
   expect-driver.exp  Minimal serial-console handoff (prompt -> one
                       command -> wait for completion marker)
+live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 void/build.sh       Stub — Phase 3
 artix/build.sh      Stub — Phase 3
 docs/ci-setup.md    Token + self-hosted runner setup for maintainers
