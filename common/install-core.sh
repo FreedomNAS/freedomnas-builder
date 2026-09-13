@@ -24,13 +24,13 @@ fnas_install_core() {
     mkdir -p "$root/usr/lib/freedomnas/profiles"
     mkdir -p "$root/usr/lib/freedomnas/webui"
 
-    rsync -a --exclude='.git' --exclude='__pycache__' --exclude='tests' --exclude='conftest.py' \
+    rsync -a --chown=0:0 --exclude='.git' --exclude='__pycache__' --exclude='tests' --exclude='conftest.py' \
         "$core_src/" "$root/usr/lib/freedomnas/core/freedomnas/"
 
-    rsync -a --exclude='.git' --exclude='debian' --exclude='PKGBUILD' --exclude='*.md' \
+    rsync -a --chown=0:0 --exclude='.git' --exclude='debian' --exclude='PKGBUILD' --exclude='*.md' \
         "$profiles_src/" "$root/usr/lib/freedomnas/profiles/"
 
-    rsync -a --exclude='.git' \
+    rsync -a --chown=0:0 --exclude='.git' \
         "$webui_src/" "$root/usr/lib/freedomnas/webui/"
 
     mkdir -p "$root/usr/lib/python3/dist-packages"
