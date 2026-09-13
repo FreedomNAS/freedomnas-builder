@@ -6,9 +6,9 @@
 # One image for every Linux edition. The installer offers a native
 # bootstrap method only when that method's tool exists on the machine it
 # runs on (context.py, bootstrap_methods), so this image carries the
-# tools itself: debootstrap for Debian and xbps-static for Void. Gentoo
-# needs nothing but tar. Arch and Artix fall back to the tarball method
-# until pacman is packaged in freedomnas-overlay.
+# tools itself: debootstrap for Debian, xbps-static for Void, and pacman
+# with pacstrap and both keyrings for Arch and Artix, built from
+# freedomnas-overlay. Gentoo needs nothing but tar.
 #
 # Built from the official stage3, verified against Gentoo's release key.
 # The Portage configuration comes from installer-gentoo.json, so the live
@@ -22,9 +22,8 @@
 # Requires root. Host tools: curl, gpgv, gpg, tar, xz, python3, rsync,
 # sha256sum, arch-chroot (sys-apps/arch-chroot, which mounts and unmounts
 # the API filesystems around every command). grub, xorriso and mksquashfs
-# run inside the
-# build root, so the host needs neither a BIOS-capable grub nor
-# squashfs-tools.
+# run inside the build root, so the host needs neither a BIOS-capable grub
+# nor squashfs-tools.
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
@@ -52,6 +51,7 @@ dev-util/dialog dev-python/pyyaml dev-python/cryptography
 sys-apps/gptfdisk sys-block/parted sys-fs/dosfstools sys-boot/efibootmgr
 net-misc/curl net-misc/dhcpcd net-misc/openssh app-misc/tmux
 dev-util/debootstrap app-crypt/debian-archive-keyring
+sys-apps/arch-install-scripts app-crypt/archlinux-keyring app-crypt/artix-keyring
 "
 
 . "$COMMON_DIR/install-core.sh"
@@ -122,7 +122,7 @@ tar -xpf "$STAGE3" -C "$ROOT" --xattrs-include='*.*' --numeric-owner
 # arch-chroot binds the host's resolv.conf only over a file that exists.
 : > "$ROOT/etc/resolv.conf"
 
-echo "=== [3/9] Portage configuration from installer-gentoo.json ==="
+echo "=== [3/9] Portage configuration and freedomnas-overlay ==="
 python3 - "$PROFILE" "$ROOT" "$MIRROR" <<'PYEOF'
 import json
 import sys
@@ -144,6 +144,20 @@ sys-kernel/gentoo-kernel-bin -initramfs
 sys-boot/grub grub_platforms_pc grub_platforms_efi-64
 sys-fs/squashfs-tools lzma
 EOF
+cat > "$ROOT/etc/portage/package.accept_keywords/freedomnas-live" <<'EOF'
+sys-apps/pacman ~amd64
+sys-apps/arch-install-scripts ~amd64
+app-crypt/archlinux-keyring ~amd64
+app-crypt/artix-keyring ~amd64
+EOF
+mkdir -p "$ROOT/etc/portage/repos.conf" "$ROOT/var/db/repos/freedomnas"
+cat > "$ROOT/etc/portage/repos.conf/freedomnas.conf" <<'EOF'
+[freedomnas]
+location = /var/db/repos/freedomnas
+masters = gentoo
+auto-sync = no
+EOF
+rsync -a --chown=0:0 --exclude='.git' "$REPOS_DIR/freedomnas-overlay/" "$ROOT/var/db/repos/freedomnas/"
 
 echo "=== [4/9] Mounts ==="
 mount --bind "$ROOT" "$ROOT"
@@ -215,7 +229,7 @@ in_root mksquashfs / "$STAGING/LiveOS/squashfs.img" \
     -noappend -comp xz -Xbcj x86 -b 1M -wildcards \
     -e 'proc/*' 'sys/*' 'dev/*' 'run/*' 'tmp/*' 'var/tmp/*' 'etc/resolv.conf' \
        'var/cache/distfiles/*' 'var/cache/binpkgs/*' 'var/db/repos/gentoo/*' \
-       "usr/src/*"
+       'var/db/repos/freedomnas/*' 'usr/src/*'
 
 echo "=== [9/9] Hybrid UEFI + BIOS ISO ==="
 CMDLINE="root=live:CDLABEL=$VOLID rd.live.image rd.live.overlay.overlayfs=1"

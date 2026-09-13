@@ -34,7 +34,7 @@ present on the machine it runs on, so the ISO carries the tools:
 | Debian | `debootstrap` (+ `debian-archive-keyring`), or tarball |
 | Void | `xbps-install` from Void's `xbps-static`, or tarball |
 | Gentoo | stage3 tarball |
-| Arch, Artix | tarball only, until pacman is packaged in `freedomnas-overlay` |
+| Arch, Artix | `pacstrap` with `pacman` and the Arch/Artix keyrings from `freedomnas-overlay`, or tarball |
 
 The same file boots on UEFI and BIOS, from optical media or written to a
 USB stick with `dd`: `grub-mkrescue` produces a hybrid ISO (El Torito BIOS
@@ -56,7 +56,10 @@ How it is built:
 3. `xbps-static`: the newest versioned tarball listed in Void's
    `sha256sums.txt`, checked against it. The `latest` line in that file
    has been seen lagging behind the file it names.
-4. Kernel (`gentoo-kernel-bin`), `linux-firmware`, ZFS, the installer,
+4. `freedomnas-overlay`, copied from the sibling checkout into the build
+   root, for `sys-apps/pacman`, `sys-apps/arch-install-scripts` and the two
+   keyrings.
+5. Kernel (`gentoo-kernel-bin`), `linux-firmware`, ZFS, the installer,
    core, profiles and WebUI from the sibling checkouts.
 
 ```sh
