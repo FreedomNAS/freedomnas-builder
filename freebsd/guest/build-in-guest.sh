@@ -157,8 +157,6 @@ cp /boot/loader.efi "$MNT/boot/efi/EFI/BOOT/BOOTX64.efi" || fail "copy loader.ef
 log "=== [7/8] Installing freedomnas-core/profiles/webui + packages ==="
 mkdir -p "$MNT/usr/lib/freedomnas"
 tar -xf "$SEED/fnas-payload.tar" -C "$MNT/usr/lib/freedomnas/"
-mkdir -p "$MNT/usr/lib/python3/dist-packages"   # kept for symmetry with Debian's layout note
-echo "/usr/lib/freedomnas/core" > "$MNT/usr/lib/python3/dist-packages/freedomnas-core.pth" || true
 
 cp /etc/resolv.conf "$MNT/etc/resolv.conf" 2>/dev/null || true
 mount -t devfs devfs "$MNT/dev" || fail "mount devfs"
@@ -206,6 +204,13 @@ done
 chroot "$MNT" python3 -m ensurepip --upgrade \
     && chroot "$MNT" python3 -m pip install --quiet fastapi uvicorn pyyaml python-pam \
     || log "WARNING: ensurepip/pip install of fastapi/uvicorn/pyyaml/python-pam failed -- install manually"
+# The .pth goes where this python3 looks (/usr/local/lib/python3.X/site-packages
+# on FreeBSD), for running `python3 -m freedomnas` by hand; firstboot.sh and
+# supervisor.sh set PYTHONPATH themselves.
+SITE_DIR="$(chroot "$MNT" python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))")" \
+    && [ -n "$SITE_DIR" ] \
+    && echo "/usr/lib/freedomnas/core" > "$MNT$SITE_DIR/freedomnas-core.pth" \
+    || log "WARNING: could not place freedomnas-core.pth in the target's site-packages"
 umount "$MNT/dev" || true
 
 log "=== [8/8] First-boot wiring (cron @reboot -- FreeBSD ships cron by default) ==="
