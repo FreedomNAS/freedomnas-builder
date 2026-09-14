@@ -205,7 +205,6 @@ chmod 0440 "$MNT/etc/sudoers.d/freedomnas"
 echo "=== Unmounting and compressing ==="
 umount "$MNT/boot/efi"
 for m in run sys proc dev/pts dev; do umount "$MNT/$m" 2>/dev/null || true; done
-zfs umount -a
 zpool export rpool
 losetup -d "$LOOP"
 trap - EXIT   # cleanup already done manually above, in the right order

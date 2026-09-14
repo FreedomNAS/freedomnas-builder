@@ -107,16 +107,18 @@ zpool create \
     -R "$MNT" \
     "$POOL" "${DISK}p3" || fail "zpool create"
 
+# Root dataset mounted first, so home and var/log mount on top of it rather
+# than underneath -- see common/zfs-layout.sh.
 zfs create -o canmount=off -o mountpoint=none              "$POOL/ROOT"
 zfs create -o canmount=noauto -o mountpoint=/               "$POOL/ROOT/$BENAME"
+zpool set "bootfs=$POOL/ROOT/$BENAME" "$POOL"
+zfs mount "$POOL/ROOT/$BENAME"
+
 zfs create                                                   "$POOL/home"
 zfs create -o canmount=off -o mountpoint=/var               "$POOL/var"
 zfs create                                                   "$POOL/var/log"
 zfs create -o canmount=noauto -o mountpoint=/etc/freedomnas/state \
     "$POOL/.freedomnas"
-
-zpool set "bootfs=$POOL/ROOT/$BENAME" "$POOL"
-zfs mount "$POOL/ROOT/$BENAME"
 zfs mount -a
 
 log "=== [4/8] Fetching + extracting base.txz/kernel.txz ($RELEASE) ==="
