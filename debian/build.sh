@@ -202,6 +202,25 @@ printf '%s\n' \
     > "$MNT/etc/sudoers.d/freedomnas"
 chmod 0440 "$MNT/etc/sudoers.d/freedomnas"
 
+# debootstrap leaves root locked and no other account, and the WebUI signs
+# in only administrators of the profile's sudo_group: ship a default one,
+# with the commands freedomnas-installer uses (users/users-debian.json).
+ADMIN_USER="${FNAS_ADMIN_USER:-admin}"
+ADMIN_PASSWORD="${FNAS_ADMIN_PASSWORD:-freedomnas}"
+eval "$(python3 - "$REPOS_DIR/freedomnas-profiles/users/users-debian.json" "$ADMIN_USER" <<'PYEOF'
+import json, shlex, sys
+users = json.load(open(sys.argv[1]))["users"]
+name = sys.argv[2]
+print(f"ADMIN_CREATE={shlex.quote(users['create'].format(username=name, groups=users['sudo_group']))}")
+print(f"ADMIN_SET_PASSWORD={shlex.quote(users['set_password_stdin'].format(username=name))}")
+print(f"ADMIN_PASSWORD_FORMAT={shlex.quote(users['password_stdin_format'])}")
+PYEOF
+)"
+chroot "$MNT" /bin/sh -c "$ADMIN_CREATE"
+python3 -c 'import sys; sys.stdout.write(sys.argv[1].format(username=sys.argv[2], password=sys.argv[3]))' \
+    "$ADMIN_PASSWORD_FORMAT" "$ADMIN_USER" "$ADMIN_PASSWORD" \
+    | chroot "$MNT" /bin/sh -c "$ADMIN_SET_PASSWORD"
+
 echo "=== Unmounting and compressing ==="
 umount "$MNT/boot/efi"
 for m in run sys proc dev/pts dev; do umount "$MNT/$m" 2>/dev/null || true; done

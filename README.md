@@ -144,8 +144,8 @@ caches under `freebsd/.cache/`) an mfsBSD live ISO on first run —
 verify/pin `MFSBSD_ISO_URL` for the release you're targeting before
 relying on this in CI, since upstream filenames change across releases.
 
-The FreeBSD image locks root and ships a default administrator for the
-WebUI and the console: `admin` / `freedomnas`, set with
+The images ship root locked and a default administrator for the WebUI
+and the console: `admin` / `freedomnas`, set with
 `FNAS_ADMIN_USER` and `FNAS_ADMIN_PASSWORD` at build time. Change the
 password after the first sign-in.
 
