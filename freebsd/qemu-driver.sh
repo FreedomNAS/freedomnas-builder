@@ -17,25 +17,24 @@
 #     depend on how the drives enumerate.
 #   - Input: keystrokes through the QEMU monitor's `sendkey`, over a
 #     unix socket, on the same fixed timings vbox-driver.sh uses.
-#   - Completion signal: build-in-guest.sh ends in `poweroff` either
+#   - Completion signal: the guest script ends in `poweroff` either
 #     way, and with -no-reboot QEMU exits when the guest powers off.
-#   - Pass/fail: the fnas:build_complete property build-in-guest.sh sets
-#     on the pool only on its success path, read back from the host.
-#     The pool is imported read-only by GUID, as rpool unless the host
-#     already has a pool of that name imported, then under a temporary
-#     name, so the export afterwards can't touch the host's own pool.
+#     Whether it succeeded is for the caller to check on the disk
+#     (build.sh: the pool property; live.sh: the ISO it wrote).
 #
-# Requires qemu-system-x86_64, xorriso, python3, zpool, losetup and sudo.
+# Usage: qemu-driver.sh <disk> <seed-dir> <mfsbsd-iso> [guest-script]
+# (default guest script: build-in-guest.sh, as the seed names it).
+# Requires qemu-system-x86_64, xorriso and python3.
 set -eu
 
 IMG_PATH="$1"
 SEED_DIR="$2"
 MFSBSD_ISO="$3"
+GUEST_SCRIPT="${4:-build-in-guest.sh}"
 
 WORK="$(mktemp -d)"
 SEED_ISO="$WORK/seed.iso"
 MON_SOCK="$WORK/monitor.sock"
-VERIFY_POOL="fnasverify$$"
 
 log() { echo "qemu-driver: $*" >&2; }
 
@@ -46,7 +45,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for tool in qemu-system-x86_64 xorriso python3 zpool losetup; do
+for tool in qemu-system-x86_64 xorriso python3; do
     command -v "$tool" >/dev/null 2>&1 || { log "$tool not found"; exit 1; }
 done
 
@@ -117,9 +116,9 @@ log "Sending Password: mfsroot"
 type_line "mfsroot"
 sleep 6
 log "Sending build command"
-type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/iso9660/FNASSEED /fnas-seed && sh /fnas-seed/build-in-guest.sh"
+type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/iso9660/FNASSEED /fnas-seed && sh /fnas-seed/$GUEST_SCRIPT"
 
-log "Waiting for guest to power off (build-in-guest.sh's completion signal)"
+log "Waiting for guest to power off ($GUEST_SCRIPT's completion signal)"
 i=0
 timeout=2400
 while kill -0 "$QEMU_PID" 2>/dev/null; do
@@ -134,28 +133,4 @@ wait "$QEMU_PID" || true
 QEMU_PID=""
 log "Guest powered off after ${i}s"
 
-log "Verifying build success (importing the pool read-only from the host)"
-LOOP=$(sudo losetup --find --show -P -r "$IMG_PATH")
-POOL_PART="${LOOP}p3"
-verify_failed=1
-if sudo zpool list -H -o name 2>/dev/null | grep -qx rpool; then
-    log "The host already has a pool named rpool -- importing the image's as $VERIFY_POOL"
-else
-    VERIFY_POOL=rpool
-fi
-GUID=$(sudo zpool import -d "$POOL_PART" 2>/dev/null | awk '$1=="id:" {print $2; exit}')
-if [ -n "$GUID" ] && sudo zpool import -o readonly=on -N -f -d "$POOL_PART" -t "$GUID" "$VERIFY_POOL" 2>/dev/null; then
-    if [ "$(sudo zfs get -H -o value fnas:build_complete "$VERIFY_POOL" 2>/dev/null)" = "yes" ]; then
-        verify_failed=0
-        log "Verified: fnas:build_complete=yes (pool GUID $GUID)"
-    else
-        log "FAIL: pool imported but fnas:build_complete is not set to yes -- build-in-guest.sh likely hit its fail() path"
-    fi
-    sudo zpool export "$VERIFY_POOL" 2>/dev/null || true
-else
-    log "FAIL: could not import a pool from $POOL_PART at all -- build-in-guest.sh likely failed before zpool create"
-fi
-sudo losetup -d "$LOOP" 2>/dev/null || true
-
-[ "$verify_failed" -eq 0 ] || exit 1
 log "Done"

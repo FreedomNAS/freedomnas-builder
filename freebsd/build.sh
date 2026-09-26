@@ -11,32 +11,21 @@
 #   1. Stages freedomnas-core/profiles/webui into a tarball (reusing
 #      the same install-core.sh logic conceptually, just packaged for
 #      transport instead of rsynced into a shared chroot).
-#   2. Boots an mfsBSD live image under a real backend (VirtualBox by
-#      default, QEMU as a documented fallback -- see FREEBSD_BACKEND
-#      below and each driver's own header for why), with the target
-#      raw image attached as a disk and the staged payload delivered
-#      in.
+#   2. Boots an mfsBSD live image under a real backend (see
+#      freebsd/mfsbsd.sh and each driver's own header), with the target
+#      raw image attached as a disk and the staged payload delivered in.
 #   3. Hands off to freebsd/guest/build-in-guest.sh, which runs INSIDE
 #      the FreeBSD guest where gpart/zpool/pkg/bectl-equivalent tooling
 #      is real, and does the actual partitioning, ZFS layout, base.txz
 #      bootstrap, boot chain, and package install.
-#   4. Waits for the guest to signal completion, then compresses the
-#      resulting raw image with zstd.
+#   4. Waits for the guest to power off, checks the pool property the
+#      guest sets only on success, then compresses the resulting raw
+#      image with zstd.
 #
 # FREEBSD_BACKEND selects the driver: "virtualbox" (default) or "qemu".
-# See vbox-driver.sh and qemu-driver.sh for what each needs installed
-# and why VirtualBox is the default (short version: the identical
-# mfsBSD ISO booted cleanly under VirtualBox with no tuning, but hung
-# early in the FreeBSD kernel on qemu-system-x86_64 on the hardware
-# this was validated against, for a root cause that was never pinned
-# down -- see qemu-driver.sh's header for everything that was ruled
-# out).
-#
-# mfsBSD ISO source and FreeBSD release/mirror below are parameterized
-# with what are, at the time of writing, the standard, long-stable URL
-# patterns for both projects — but pin/verify the exact filename for the
-# release you target before relying on this in production; upstream
-# filenames do change across releases.
+# An earlier QEMU driver hung early in the FreeBSD kernel on the
+# hardware this was first validated against; the current one has built
+# and verified images on a Gentoo host with KVM (2026-09-26).
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
@@ -47,21 +36,7 @@ REPOS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 IMG_PATH="${1:-$SCRIPT_DIR/freebsd.img}"
 IMG_SIZE="${2:-8G}"
 
-FREEBSD_BACKEND="${FREEBSD_BACKEND:-virtualbox}"
-# These are deliberately independent: FREEBSD_RELEASE is the *installed*
-# system's base.txz/kernel.txz version and should track whatever FreeBSD
-# currently ships as a release; MFSBSD_RELEASE is just the live/bootstrap
-# environment's version and only needs to be able to partition, create
-# the pool, and fetch+extract the (possibly much newer) target release --
-# confirmed empirically that mfsbsd.vx.sk lags behind FreeBSD's own
-# releases (14.2 is still the newest mfsBSD ISO, with FreeBSD at 15.1).
-# The target's boot code and loader come from the extracted target, not
-# from the live environment, so an older mfsBSD installs a newer release.
-FREEBSD_RELEASE="${FREEBSD_RELEASE:-15.1-RELEASE}"
-MFSBSD_RELEASE="${MFSBSD_RELEASE:-14.2-RELEASE}"
-MFSBSD_ISO_URL="${MFSBSD_ISO_URL:-https://mfsbsd.vx.sk/files/iso/14/amd64/mfsbsd-${MFSBSD_RELEASE}-amd64.iso}"
-MFSBSD_ISO_CACHE="$SCRIPT_DIR/.cache/mfsbsd-${MFSBSD_RELEASE}-amd64.iso"
-
+. "$SCRIPT_DIR/mfsbsd.sh"
 . "$COMMON_DIR/install-core.sh"
 
 SEED_DIR="$(mktemp -d)"
@@ -120,36 +95,86 @@ echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="
 truncate -s "$IMG_SIZE" "$IMG_PATH"
 
 echo "=== [3/4] Fetching mfsBSD live ISO (cached under freebsd/.cache/) ==="
-mkdir -p "$(dirname "$MFSBSD_ISO_CACHE")"
-if [ ! -f "$MFSBSD_ISO_CACHE" ]; then
-    curl -fL "$MFSBSD_ISO_URL" -o "$MFSBSD_ISO_CACHE" || {
-        echo "build.sh: could not fetch $MFSBSD_ISO_URL" >&2
-        echo "build.sh: verify/pin the correct mfsBSD ISO URL for $MFSBSD_RELEASE and set MFSBSD_ISO_URL" >&2
-        exit 1
-    }
-fi
+fnas_fetch_mfsbsd
 
 echo "=== [4/4] Booting mfsBSD (backend: $FREEBSD_BACKEND) and running build-in-guest.sh ==="
-case "$FREEBSD_BACKEND" in
-    virtualbox)
-        command -v VBoxManage >/dev/null 2>&1 || {
-            echo "build.sh: VBoxManage not found — install VirtualBox or set FREEBSD_BACKEND=qemu" >&2
-            exit 1
-        }
-        command -v xorriso >/dev/null 2>&1 || {
-            echo "build.sh: xorriso not found — needed to build the seed ISO for the VirtualBox backend" >&2
-            exit 1
-        }
-        "$SCRIPT_DIR/vbox-driver.sh" "$IMG_PATH" "$SEED_DIR" "$MFSBSD_ISO_CACHE"
-        ;;
-    qemu)
-        "$SCRIPT_DIR/qemu-driver.sh" "$IMG_PATH" "$SEED_DIR" "$MFSBSD_ISO_CACHE"
-        ;;
-    *)
-        echo "build.sh: unknown FREEBSD_BACKEND '$FREEBSD_BACKEND' (expected virtualbox|qemu)" >&2
-        exit 1
-        ;;
-esac
+fnas_run_guest "$IMG_PATH" "$SEED_DIR" build-in-guest.sh
+
+fnas_verify_pool() {
+    # A bare "VM stopped" can't tell success from build-in-guest.sh's
+    # fail() path -- both end in a plain `poweroff` (neither backend has console
+    # text to check, see vbox-driver.sh's header). So this isn't optional
+    # best-effort logging: it's the only actual pass/fail signal a
+    # build has, gating build.sh's exit code. build-in-guest.sh sets
+    # fnas:build_complete=yes on the pool only on its success path, right
+    # before the final export.
+    command -v zpool >/dev/null 2>&1 || { echo "build.sh: FAIL: zpool not available on this host — can't verify the build" >&2; return 1; }
+
+    LOOP=$(sudo losetup --find --show -P -r "$IMG_PATH")
+    # zpool's ZFS partition is always p3 in this fixed layout (freebsd-boot,
+    # efi, freebsd-zfs added in that order by build-in-guest.sh's gpart
+    # calls). Confirmed empirically that `-d "$LOOP"` (the whole loop
+    # device, no partition suffix) finds nothing at all -- `-d` needs to
+    # point at the actual partition (or a directory containing it), not the
+    # parent disk device.
+    POOL_PART="${LOOP}p3"
+    verify_failed=1
+
+    # Import by GUID, not by the name "rpool" -- confirmed on this
+    # validation host that importing by name is a real hazard, not just a
+    # theoretical one: `zpool import` (unscoped) found an actual pre-existing
+    # "rpool" on a real host NVMe partition, unrelated to this build entirely.
+    # It wasn't actually imported/active, so nothing was touched, but
+    # `-d ... rpool` matching by name is exactly the kind of ambiguity that
+    # either fails outright or -- worse -- could pick the wrong "rpool" on a
+    # host where the name collision candidate *is* currently mountable.
+    # `-d "$POOL_PART"` alone lists only what's actually visible on this
+    # specific partition, from which the GUID is unambiguous.
+    #
+    # Match on field content, not exact leading-whitespace count -- an
+    # earlier version anchored on exactly 3 leading spaces before "id:",
+    # which never matched (the real output has 4), so this ALWAYS returned
+    # empty and every build was reported as failed regardless of whether it
+    # actually succeeded. Confirmed by the user importing the same image by
+    # hand: the pool was there and fine. Whitespace-tolerant field match
+    # instead of a fragile anchored regex.
+    #
+    # `-o readonly=on` is required, not optional here: a plain `-N -f`
+    # import of this pool failed with "cannot import 'rpool': permission
+    # denied" on this host even though the pool itself is completely
+    # healthy (confirmed by hand) -- some ZFS feature FreeBSD's newer
+    # OpenZFS enables by default isn't in this host's read-write-import
+    # compatible set, but it *is* read-only-compatible, which is all
+    # verification needs anyway.
+    #
+    # The GUID keeps the import unambiguous, but the imported pool still takes
+    # a name: if the host already has a pool called rpool imported (its own
+    # root pool, say), this one is imported under a temporary name instead,
+    # so neither the import nor the export below can touch the host's pool.
+    VERIFY_POOL=rpool
+    if sudo zpool list -H -o name 2>/dev/null | grep -qx rpool; then
+        VERIFY_POOL="fnasverify$$"
+        echo "build.sh: The host already has a pool named rpool -- importing the image's as $VERIFY_POOL"
+    fi
+    GUID=$(sudo zpool import -d "$POOL_PART" 2>/dev/null | awk '$1=="id:" {print $2; exit}')
+    if [ -n "$GUID" ] && sudo zpool import -o readonly=on -N -f -d "$POOL_PART" -t "$GUID" "$VERIFY_POOL" 2>/dev/null; then
+        if [ "$(sudo zfs get -H -o value fnas:build_complete "$VERIFY_POOL" 2>/dev/null)" = "yes" ]; then
+            verify_failed=0
+            echo "build.sh: Verified: fnas:build_complete=yes on $VERIFY_POOL (GUID $GUID)"
+        else
+            echo "build.sh: FAIL: pool imported but fnas:build_complete is not set to yes -- build-in-guest.sh likely hit its fail() path"
+        fi
+        sudo zpool export "$VERIFY_POOL" 2>/dev/null || true
+    else
+        echo "build.sh: FAIL: could not import a pool from $POOL_PART at all -- build-in-guest.sh likely failed before zpool create"
+    fi
+    sudo losetup -d "$LOOP" 2>/dev/null || true
+
+    return "$verify_failed"
+}
+
+echo "=== Verifying the build (importing the pool read-only) ==="
+fnas_verify_pool || { echo "build.sh: the image did not build" >&2; exit 1; }
 
 echo "=== Compressing image ==="
 . "$COMMON_DIR/compress.sh"

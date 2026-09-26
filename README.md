@@ -88,13 +88,16 @@ common/            Shared build-time function libraries (sourced by each
                     reconciles or hands off to the WebUI's first-run wizard
                     per ADR-002
 debian/build.sh     Implemented — chroots directly on the Linux runner
-freebsd/            Implemented — QEMU-driven (see build.sh header)
-  build.sh            Host-side orchestrator: stages the payload, boots
-                      mfsBSD under QEMU, hands off to the guest script
-  guest/build-in-guest.sh  Runs INSIDE the FreeBSD guest — the actual
-                      gpart/zpool/pkg/boot-chain provisioning logic
-  qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU
-                      monitor, pool property as the pass/fail signal
+freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
+  build.sh            Disk image: stages the payload, runs the guest
+                      script, checks the pool property it sets on success
+  live.sh             Live installer ISO for FreeBSD (UEFI + BIOS, CD + USB):
+                      the guest builds it in RAM, writes it to a scratch
+                      disk, live.sh cuts it back out by its volume size
+  mfsbsd.sh           Shared: mfsBSD release/URL, fetch, backend dispatch
+  guest/build-in-guest.sh  Runs INSIDE the guest — gpart/zpool/pkg/boot chain
+  guest/live-in-guest.sh   Runs INSIDE the guest — live tree, makefs + mkimg
+  qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU monitor
   vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 void/build.sh       Stub — Phase 3
@@ -129,6 +132,7 @@ self-hosted runner:
 ```sh
 sudo ./debian/build.sh [output-path] [image-size]   # defaults: debian/debian.img, 8G
 sudo ./freebsd/build.sh [output-path] [image-size]  # defaults: freebsd/freebsd.img, 8G
+./freebsd/live.sh [output-path]                   # default: freebsd/freedomnas-live-freebsd.iso
 ```
 
 `freebsd/build.sh` additionally needs `qemu-system-x86_64` (with
@@ -145,7 +149,10 @@ WebUI and the console: `admin` / `freedomnas`, set with
 `FNAS_ADMIN_USER` and `FNAS_ADMIN_PASSWORD` at build time. Change the
 password after the first sign-in.
 
-Output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
+`freebsd/live.sh` needs the same backend, and gives the guest 6 GiB
+(`QEMU_MEM` / `VBOX_MEM`): the live tree and the ISO are built in memory.
+
+Image output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
 `zstd -d {edition}.img.zst` before flashing, or point Balena Etcher at
 the `.zst` file directly (it decompresses on the fly).
 

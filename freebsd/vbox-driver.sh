@@ -56,6 +56,7 @@ set -eu
 IMG_PATH="$1"
 SEED_DIR="$2"
 MFSBSD_ISO="$3"
+GUEST_SCRIPT="${4:-build-in-guest.sh}"
 
 VM="fnas-image-builder-freebsd-$$"
 VDI_PATH="$(dirname "$IMG_PATH")/.fnas-vbox-$$.vdi"
@@ -90,7 +91,7 @@ IMG_SIZE_MB=$(( $(stat -c%s "$IMG_PATH") / 1024 / 1024 ))
 
 log "Creating VM $VM"
 VBoxManage createvm --name "$VM" --ostype FreeBSD_64 --register
-VBoxManage modifyvm "$VM" --memory 2048 --cpus 2 --firmware bios \
+VBoxManage modifyvm "$VM" --memory "${VBOX_MEM:-2048}" --cpus 2 --firmware bios \
     --nic1 nat --audio-driver none --usb-ohci off --usb-ehci off \
     --graphicscontroller vmsvga
 
@@ -134,9 +135,9 @@ log "Sending Password: mfsroot"
 type_line "mfsroot"
 sleep 6
 log "Sending build command"
-type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/cd1 /fnas-seed && sh /fnas-seed/build-in-guest.sh"
+type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/cd1 /fnas-seed && sh /fnas-seed/$GUEST_SCRIPT"
 
-log "Waiting for guest to power off (build-in-guest.sh's completion signal)"
+log "Waiting for guest to power off ($GUEST_SCRIPT's completion signal)"
 i=0
 timeout=2400
 while [ "$i" -lt "$timeout" ]; do
@@ -156,80 +157,5 @@ fi
 log "Converting VDI -> raw image ($IMG_PATH)"
 rm -f "$IMG_PATH"
 VBoxManage clonemedium disk "$VDI_PATH" "$IMG_PATH" --format RAW
-
-# A bare "VM stopped" can't tell success from build-in-guest.sh's
-# fail() path -- both end in a plain `poweroff` (there's no serial
-# console text to check here the way qemu-driver.sh's expect script
-# can, see vbox-driver.sh's own header). So this isn't optional
-# best-effort logging: it's the only actual pass/fail signal this
-# backend has, gating the script's exit code. build-in-guest.sh sets
-# fnas:build_complete=yes on the pool only on its success path, right
-# before the final export.
-command -v zpool >/dev/null 2>&1 || { log "FAIL: zpool not available on this host — can't verify the build"; exit 1; }
-
-log "Verifying build success (importing the pool read-only from the host)"
-LOOP=$(sudo losetup --find --show -P "$IMG_PATH")
-# zpool's ZFS partition is always p3 in this fixed layout (freebsd-boot,
-# efi, freebsd-zfs added in that order by build-in-guest.sh's gpart
-# calls). Confirmed empirically that `-d "$LOOP"` (the whole loop
-# device, no partition suffix) finds nothing at all -- `-d` needs to
-# point at the actual partition (or a directory containing it), not the
-# parent disk device.
-POOL_PART="${LOOP}p3"
-verify_failed=1
-
-# Import by GUID, not by the name "rpool" -- confirmed on this
-# validation host that importing by name is a real hazard, not just a
-# theoretical one: `zpool import` (unscoped) found an actual pre-existing
-# "rpool" on a real host NVMe partition, unrelated to this build entirely.
-# It wasn't actually imported/active, so nothing was touched, but
-# `-d ... rpool` matching by name is exactly the kind of ambiguity that
-# either fails outright or -- worse -- could pick the wrong "rpool" on a
-# host where the name collision candidate *is* currently mountable.
-# `-d "$POOL_PART"` alone lists only what's actually visible on this
-# specific partition, from which the GUID is unambiguous.
-#
-# Match on field content, not exact leading-whitespace count -- an
-# earlier version anchored on exactly 3 leading spaces before "id:",
-# which never matched (the real output has 4), so this ALWAYS returned
-# empty and every build was reported as failed regardless of whether it
-# actually succeeded. Confirmed by the user importing the same image by
-# hand: the pool was there and fine. Whitespace-tolerant field match
-# instead of a fragile anchored regex.
-#
-# `-o readonly=on` is required, not optional here: a plain `-N -f`
-# import of this pool failed with "cannot import 'rpool': permission
-# denied" on this host even though the pool itself is completely
-# healthy (confirmed by hand) -- some ZFS feature FreeBSD's newer
-# OpenZFS enables by default isn't in this host's read-write-import
-# compatible set, but it *is* read-only-compatible, which is all
-# verification needs anyway.
-#
-# The GUID keeps the import unambiguous, but the imported pool still takes
-# a name: if the host already has a pool called rpool imported (its own
-# root pool, say), this one is imported under a temporary name instead,
-# so neither the import nor the export below can touch the host's pool.
-VERIFY_POOL=rpool
-if sudo zpool list -H -o name 2>/dev/null | grep -qx rpool; then
-    VERIFY_POOL="fnasverify$$"
-    log "The host already has a pool named rpool -- importing the image's as $VERIFY_POOL"
-fi
-GUID=$(sudo zpool import -d "$POOL_PART" 2>/dev/null | awk '$1=="id:" {print $2; exit}')
-if [ -n "$GUID" ] && sudo zpool import -o readonly=on -N -f -d "$POOL_PART" -t "$GUID" "$VERIFY_POOL" 2>/dev/null; then
-    if [ "$(sudo zfs get -H -o value fnas:build_complete "$VERIFY_POOL" 2>/dev/null)" = "yes" ]; then
-        verify_failed=0
-        log "Verified: fnas:build_complete=yes on $VERIFY_POOL (GUID $GUID)"
-    else
-        log "FAIL: pool imported but fnas:build_complete is not set to yes -- build-in-guest.sh likely hit its fail() path"
-    fi
-    sudo zpool export "$VERIFY_POOL" 2>/dev/null || true
-else
-    log "FAIL: could not import a pool from $POOL_PART at all -- build-in-guest.sh likely failed before zpool create"
-fi
-sudo losetup -d "$LOOP" 2>/dev/null || true
-
-if [ "$verify_failed" -ne 0 ]; then
-    exit 1
-fi
 
 log "Done"
