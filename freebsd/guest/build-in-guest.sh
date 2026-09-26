@@ -50,7 +50,7 @@ fail() {
     exit 1
 }
 
-[ -n "${INSTALL_ROOT:-}" ] && [ -n "${CONFIG_DIR:-}" ] || fail "env.sh names no INSTALL_ROOT/CONFIG_DIR"
+[ -n "${INSTALL_ROOT:-}" ] && [ -n "${CONFIG_DIR:-}" ] && [ -n "${PACKAGES:-}" ] || fail "env.sh names no INSTALL_ROOT/CONFIG_DIR/PACKAGES"
 
 DISK=""
 for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
@@ -92,10 +92,6 @@ gpart add -t freebsd-boot -s 512k -l bootfs0 "$DISK" || fail "gpart add freebsd-
 gpart add -t efi -s 512m -l efiboot0 "$DISK" || fail "gpart add efi"
 gpart add -t freebsd-zfs -l zfs0 "$DISK" || fail "gpart add freebsd-zfs"
 
-# Matches freedomnas-profiles/freebsd.json's bootloader.install_gptzfsboot
-# template (part_num=1 -- the freebsd-boot partition just created above).
-gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i 1 "$DISK" || fail "gpart bootcode"
-
 log "=== [2/8] Formatting EFI partition ==="
 newfs_msdos -F 32 -c 1 -L EFI "${DISK}p2" || fail "newfs_msdos"
 
@@ -135,6 +131,13 @@ fetch -o /tmp/kernel.txz "$MIRROR/kernel.txz" || fail "fetch kernel.txz from $MI
 tar -xf /tmp/base.txz   -C "$MNT" || fail "extract base.txz"
 tar -xf /tmp/kernel.txz -C "$MNT" || fail "extract kernel.txz"
 
+# Boot code from the release just extracted, not from the live system: the
+# mfsBSD running this can be older than the release it installs, and the
+# loader has to understand that release's pool and kernel. Matches
+# freedomnas-profiles' bootloader.install_gptzfsboot (part_num=1 -- the
+# freebsd-boot partition).
+gpart bootcode -b "$MNT/boot/pmbr" -p "$MNT/boot/gptzfsboot" -i 1 "$DISK" || fail "gpart bootcode"
+
 log "=== [5/8] Base configuration ==="
 echo "freedomnas" > "$MNT/etc/hostname"
 cat >> "$MNT/etc/rc.conf" <<EOF
@@ -154,7 +157,7 @@ mkdir -p "$MNT/boot/efi/EFI/BOOT"
 # EFI/BOOT/BOOTX64.efi is what UEFI firmware boots automatically when no
 # NVRAM entry exists, i.e. exactly the state of a freshly flashed disk.
 # FreeBSD just doesn't need a third-party shim to land there.
-cp /boot/loader.efi "$MNT/boot/efi/EFI/BOOT/BOOTX64.efi" || fail "copy loader.efi"
+cp "$MNT/boot/loader.efi" "$MNT/boot/efi/EFI/BOOT/BOOTX64.efi" || fail "copy loader.efi"
 
 log "=== [7/8] Installing freedomnas-core/profiles/webui + packages ==="
 mkdir -p "$MNT$INSTALL_ROOT"
@@ -163,26 +166,10 @@ tar -xf "$SEED/fnas-payload.tar" -C "$MNT$INSTALL_ROOT/"
 cp /etc/resolv.conf "$MNT/etc/resolv.conf" 2>/dev/null || true
 mount -t devfs devfs "$MNT/dev" || fail "mount devfs"
 pkg -c "$MNT" bootstrap -y || fail "pkg bootstrap"
-# Package names are the freedomnas-profiles/packages/*.json "freebsd"
-# entries for core + samba-cifs, minus base.txz/kernel.txz-covered items
-# (base/kernel-generic aren't pkg(8) packages -- they're the
-# distribution sets just extracted above; core.json's freebsd section
-# listing them is a pre-existing inconsistency worth cleaning up
-# separately, not fixed here). No separate NFS package: FreeBSD's NFS
-# server (nfsd/mountd/rpcbind) is already part of base.txz, unlike
-# Debian/Linux which needs nfs-kernel-server -- "nfs-ganesha" (a
-# userspace NFS server, and not even in the current pkg repo under that
-# name) was simply the wrong thing to reach for here.
-#
-# "python39"/"py39-pip" (hardcoded version) are exactly the kind of
-# naming this project got bitten by once already: FreeBSD's default
-# python3 version moves on (confirmed empirically -- 3.9 is gone from
-# the repo entirely, 3.12 is current as of this writing). "python3" is
-# the meta-port that always tracks whatever's current; pip comes via
-# Python's own ensurepip instead of chasing an exact py3NN-pip package
-# name release to release (also confirmed empirically that a
-# same-shaped "py312-pip" package doesn't actually exist -- ensurepip
-# sidesteps the question of what pkg calls it entirely).
+# $PACKAGES is freedomnas-profiles' packages/core.json and samba-cifs.json
+# "freebsd" lists, read by build.sh: the Python stack the core and the WebUI
+# import comes from FreeBSD's own py3NN-* packages, as the installer
+# installs it, not from pip.
 # Retried: confirmed empirically that the repo-catalog fetch
 # ("pkg: An error occured while fetching package: No error" /
 # "Unable to update repository") intermittently fails transiently in
@@ -191,7 +178,9 @@ pkg -c "$MNT" bootstrap -y || fail "pkg bootstrap"
 # DNS/NAT race rather than anything wrong with the package list itself.
 pkg_install_ok=1
 for attempt in 1 2 3; do
-    if pkg -c "$MNT" install -y curl wget sudo vim openssh-portable samba416 python3; then
+    # $PACKAGES is split into words on purpose: one package per word.
+    # shellcheck disable=SC2086
+    if pkg -c "$MNT" install -y $PACKAGES; then
         pkg_install_ok=0
         break
     fi
@@ -199,13 +188,6 @@ for attempt in 1 2 3; do
     sleep 10
 done
 [ "$pkg_install_ok" -eq 0 ] || fail "pkg install (3 attempts)"
-# The "python3" pkg meta-port creates a plain /usr/local/bin/python3
-# symlink to whatever versioned interpreter it pulled in (confirmed
-# empirically -- python3 -> python3.12 here), so there's no need to
-# detect/hardcode the version number at all.
-chroot "$MNT" python3 -m ensurepip --upgrade \
-    && chroot "$MNT" python3 -m pip install --quiet fastapi uvicorn pyyaml python-pam \
-    || log "WARNING: ensurepip/pip install of fastapi/uvicorn/pyyaml/python-pam failed -- install manually"
 # The .pth goes where this python3 looks (/usr/local/lib/python3.X/site-packages
 # on FreeBSD), for running `python3 -m freedomnas` by hand; firstboot.sh and
 # supervisor.sh set PYTHONPATH themselves.

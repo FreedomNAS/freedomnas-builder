@@ -54,11 +54,10 @@ FREEBSD_BACKEND="${FREEBSD_BACKEND:-virtualbox}"
 # environment's version and only needs to be able to partition, create
 # the pool, and fetch+extract the (possibly much newer) target release --
 # confirmed empirically that mfsbsd.vx.sk lags behind FreeBSD's own
-# releases (14.2 was the newest mfsBSD ISO available at the time of
-# writing, while 14.4 was the newest actual FreeBSD release -- 14.2's
-# base.txz/kernel.txz had already been pulled from the mirror). Verify
-# both are still current before relying on this in production.
-FREEBSD_RELEASE="${FREEBSD_RELEASE:-14.4-RELEASE}"
+# releases (14.2 is still the newest mfsBSD ISO, with FreeBSD at 15.1).
+# The target's boot code and loader come from the extracted target, not
+# from the live environment, so an older mfsBSD installs a newer release.
+FREEBSD_RELEASE="${FREEBSD_RELEASE:-15.1-RELEASE}"
 MFSBSD_RELEASE="${MFSBSD_RELEASE:-14.2-RELEASE}"
 MFSBSD_ISO_URL="${MFSBSD_ISO_URL:-https://mfsbsd.vx.sk/files/iso/14/amd64/mfsbsd-${MFSBSD_RELEASE}-amd64.iso}"
 MFSBSD_ISO_CACHE="$SCRIPT_DIR/.cache/mfsbsd-${MFSBSD_RELEASE}-amd64.iso"
@@ -85,10 +84,17 @@ fnas_path() {
     python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["paths"][sys.argv[2]])' \
         "$REPOS_DIR/freedomnas-profiles/os/os-freebsd.json" "$1"
 }
+# The packages too: core and samba-cifs, as freedomnas-profiles lists them
+# for FreeBSD.
+fnas_packages() {
+    python3 -c 'import json, sys; print(" ".join(p for c in sys.argv[2:] for p in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"]["packages"]))' \
+        "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs
+}
 cat > "$SEED_DIR/env.sh" <<EOF
 FREEBSD_RELEASE="$FREEBSD_RELEASE"
 INSTALL_ROOT="$(fnas_path install_root)"
 CONFIG_DIR="$(fnas_path config_dir)"
+PACKAGES="$(fnas_packages)"
 EOF
 
 echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="
