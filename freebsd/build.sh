@@ -79,8 +79,16 @@ cp "$ASSETS_DIR/firstboot.sh" "$ASSETS_DIR/supervisor.sh" "$SEED_DIR/"
 cp "$SCRIPT_DIR/guest/build-in-guest.sh" "$SEED_DIR/build-in-guest.sh"
 # Env vars don't cross the VM boundary -- build-in-guest.sh sources this
 # instead of inheriting FREEBSD_RELEASE/FREEBSD_MIRROR directly.
+# Where FreeBSD keeps FreedomNAS is freedomnas-profiles' data, not this
+# script's: os/os-freebsd.json's `paths`.
+fnas_path() {
+    python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["paths"][sys.argv[2]])' \
+        "$REPOS_DIR/freedomnas-profiles/os/os-freebsd.json" "$1"
+}
 cat > "$SEED_DIR/env.sh" <<EOF
 FREEBSD_RELEASE="$FREEBSD_RELEASE"
+INSTALL_ROOT="$(fnas_path install_root)"
+CONFIG_DIR="$(fnas_path config_dir)"
 EOF
 
 echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="

@@ -50,6 +50,8 @@ fail() {
     exit 1
 }
 
+[ -n "${INSTALL_ROOT:-}" ] && [ -n "${CONFIG_DIR:-}" ] || fail "env.sh names no INSTALL_ROOT/CONFIG_DIR"
+
 DISK=""
 for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
     [ -e "$candidate" ] && DISK="$candidate" && break
@@ -117,7 +119,7 @@ zfs mount "$POOL/ROOT/$BENAME"
 zfs create                                                   "$POOL/home"
 zfs create -o canmount=off -o mountpoint=/var               "$POOL/var"
 zfs create                                                   "$POOL/var/log"
-zfs create -o canmount=noauto -o mountpoint=/etc/freedomnas/state \
+zfs create -o canmount=noauto -o mountpoint="$CONFIG_DIR/state" \
     "$POOL/.freedomnas"
 zfs mount -a
 
@@ -155,8 +157,8 @@ mkdir -p "$MNT/boot/efi/EFI/BOOT"
 cp /boot/loader.efi "$MNT/boot/efi/EFI/BOOT/BOOTX64.efi" || fail "copy loader.efi"
 
 log "=== [7/8] Installing freedomnas-core/profiles/webui + packages ==="
-mkdir -p "$MNT/usr/lib/freedomnas"
-tar -xf "$SEED/fnas-payload.tar" -C "$MNT/usr/lib/freedomnas/"
+mkdir -p "$MNT$INSTALL_ROOT"
+tar -xf "$SEED/fnas-payload.tar" -C "$MNT$INSTALL_ROOT/"
 
 cp /etc/resolv.conf "$MNT/etc/resolv.conf" 2>/dev/null || true
 mount -t devfs devfs "$MNT/dev" || fail "mount devfs"
@@ -209,22 +211,22 @@ chroot "$MNT" python3 -m ensurepip --upgrade \
 # supervisor.sh set PYTHONPATH themselves.
 SITE_DIR="$(chroot "$MNT" python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))")" \
     && [ -n "$SITE_DIR" ] \
-    && echo "/usr/lib/freedomnas/core" > "$MNT$SITE_DIR/freedomnas-core.pth" \
+    && echo "$INSTALL_ROOT/core" > "$MNT$SITE_DIR/freedomnas-core.pth" \
     || log "WARNING: could not place freedomnas-core.pth in the target's site-packages"
 umount "$MNT/dev" || true
 
 log "=== [8/8] First-boot wiring (cron @reboot -- FreeBSD ships cron by default) ==="
-mkdir -p "$MNT/usr/lib/freedomnas/webui/bin"
+mkdir -p "$MNT$INSTALL_ROOT/webui/bin"
 # Staged by freebsd/build.sh from freedomnas-profiles/assets -- the same
 # scripts freedomnas-installer deploys.
 for script in firstboot.sh supervisor.sh; do
-    install -m 755 "$SEED/$script" "$MNT/usr/lib/freedomnas/webui/bin/$script"
+    install -m 755 "$SEED/$script" "$MNT$INSTALL_ROOT/webui/bin/$script"
 done
 
 # FreeBSD's cron is vixie-cron heritage same as Debian's and supports the
 # same @reboot macro -- but (unlike Debian) there's no /etc/cron.d/ drop-in
 # directory in base, so this goes into the system crontab directly.
-echo "@reboot root /usr/lib/freedomnas/webui/bin/firstboot.sh >> /var/log/freedomnas-webui.log 2>&1" \
+echo "@reboot root $INSTALL_ROOT/webui/bin/firstboot.sh >> /var/log/freedomnas-webui.log 2>&1" \
     >> "$MNT/etc/crontab"
 
 # Passwordless sudo for the administrators' group: the WebUI runs updates as
