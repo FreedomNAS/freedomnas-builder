@@ -204,15 +204,25 @@ verify_failed=1
 # OpenZFS enables by default isn't in this host's read-write-import
 # compatible set, but it *is* read-only-compatible, which is all
 # verification needs anyway.
+#
+# The GUID keeps the import unambiguous, but the imported pool still takes
+# a name: if the host already has a pool called rpool imported (its own
+# root pool, say), this one is imported under a temporary name instead,
+# so neither the import nor the export below can touch the host's pool.
+VERIFY_POOL=rpool
+if sudo zpool list -H -o name 2>/dev/null | grep -qx rpool; then
+    VERIFY_POOL="fnasverify$$"
+    log "The host already has a pool named rpool -- importing the image's as $VERIFY_POOL"
+fi
 GUID=$(sudo zpool import -d "$POOL_PART" 2>/dev/null | awk '$1=="id:" {print $2; exit}')
-if [ -n "$GUID" ] && sudo zpool import -o readonly=on -N -f -d "$POOL_PART" "$GUID" 2>/dev/null; then
-    if [ "$(sudo zfs get -H -o value fnas:build_complete rpool 2>/dev/null)" = "yes" ]; then
+if [ -n "$GUID" ] && sudo zpool import -o readonly=on -N -f -d "$POOL_PART" -t "$GUID" "$VERIFY_POOL" 2>/dev/null; then
+    if [ "$(sudo zfs get -H -o value fnas:build_complete "$VERIFY_POOL" 2>/dev/null)" = "yes" ]; then
         verify_failed=0
-        log "Verified: fnas:build_complete=yes on rpool (GUID $GUID)"
+        log "Verified: fnas:build_complete=yes on $VERIFY_POOL (GUID $GUID)"
     else
         log "FAIL: pool imported but fnas:build_complete is not set to yes -- build-in-guest.sh likely hit its fail() path"
     fi
-    sudo zpool export rpool 2>/dev/null || true
+    sudo zpool export "$VERIFY_POOL" 2>/dev/null || true
 else
     log "FAIL: could not import a pool from $POOL_PART at all -- build-in-guest.sh likely failed before zpool create"
 fi

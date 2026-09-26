@@ -74,7 +74,8 @@ is lost, just repeat step 1–2 with a freshly generated token.
 these natively). On top of everything `debian/build.sh` needs, the
 self-hosted runner also needs:
 
-- `qemu-system-x86_64` and `expect` installed.
+- `qemu-system-x86_64` (run with `FREEBSD_BACKEND=qemu`) and `xorriso`
+  installed.
 - `/dev/kvm` present and read/write-accessible to the runner user — the
   build still works without it (falls back to software emulation
   automatically) but a full `base.txz` fetch + `pkg install` under pure

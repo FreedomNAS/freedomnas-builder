@@ -90,11 +90,30 @@ fnas_packages() {
     python3 -c 'import json, sys; print(" ".join(p for c in sys.argv[2:] for p in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"]["packages"]))' \
         "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs
 }
+# And the accounts: base.txz ships root with an empty password, and the
+# WebUI signs in only administrators of the profile's sudo_group, so the
+# image locks root and ships a default administrator instead, with the
+# commands freedomnas-installer uses (users/users-freebsd.json).
+fnas_user_commands() {
+    python3 - "$REPOS_DIR/freedomnas-profiles/users/users-freebsd.json" "$ADMIN_USER" <<'PYEOF'
+import json, shlex, sys
+users = json.load(open(sys.argv[1]))["users"]
+name = sys.argv[2]
+for var, cmd in (("ADMIN_CREATE", users["create"].format(username=name, groups=users["sudo_group"])),
+                 ("ADMIN_SET_PASSWORD", users["set_password_stdin"].format(username=name)),
+                 ("LOCK_ROOT", users["lock_root"])):
+    print(f"{var}={shlex.quote(cmd)}")
+PYEOF
+}
+ADMIN_USER="${FNAS_ADMIN_USER:-admin}"
+ADMIN_PASSWORD="${FNAS_ADMIN_PASSWORD:-freedomnas}"
 cat > "$SEED_DIR/env.sh" <<EOF
 FREEBSD_RELEASE="$FREEBSD_RELEASE"
 INSTALL_ROOT="$(fnas_path install_root)"
 CONFIG_DIR="$(fnas_path config_dir)"
 PACKAGES="$(fnas_packages)"
+ADMIN_PASSWORD=$(python3 -c 'import shlex, sys; print(shlex.quote(sys.argv[1]))' "$ADMIN_PASSWORD")
+$(fnas_user_commands)
 EOF
 
 echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="

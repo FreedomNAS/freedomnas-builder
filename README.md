@@ -93,8 +93,9 @@ freebsd/            Implemented — QEMU-driven (see build.sh header)
                       mfsBSD under QEMU, hands off to the guest script
   guest/build-in-guest.sh  Runs INSIDE the FreeBSD guest — the actual
                       gpart/zpool/pkg/boot-chain provisioning logic
-  expect-driver.exp  Minimal serial-console handoff (prompt -> one
-                      command -> wait for completion marker)
+  qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU
+                      monitor, pool property as the pass/fail signal
+  vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 void/build.sh       Stub — Phase 3
 artix/build.sh      Stub — Phase 3
@@ -130,14 +131,19 @@ sudo ./debian/build.sh [output-path] [image-size]   # defaults: debian/debian.im
 sudo ./freebsd/build.sh [output-path] [image-size]  # defaults: freebsd/freebsd.img, 8G
 ```
 
-`freebsd/build.sh` additionally needs `qemu-system-x86_64` and `expect`
-on the runner (not required for `debian/build.sh`), and `/dev/kvm` for
+`freebsd/build.sh` additionally needs `qemu-system-x86_64` (with
+`FREEBSD_BACKEND=qemu`) or VirtualBox, plus `xorriso`, on the runner (not required for `debian/build.sh`), and `/dev/kvm` for
 reasonable build times — it boots a real FreeBSD environment under QEMU
 to run gpart/zpool/pkg, since those don't exist on Linux; see the
 header comment in `freebsd/build.sh` for why. It also downloads (and
 caches under `freebsd/.cache/`) an mfsBSD live ISO on first run —
 verify/pin `MFSBSD_ISO_URL` for the release you're targeting before
 relying on this in CI, since upstream filenames change across releases.
+
+The FreeBSD image locks root and ships a default administrator for the
+WebUI and the console: `admin` / `freedomnas`, set with
+`FNAS_ADMIN_USER` and `FNAS_ADMIN_PASSWORD` at build time. Change the
+password after the first sign-in.
 
 Output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
 `zstd -d {edition}.img.zst` before flashing, or point Balena Etcher at

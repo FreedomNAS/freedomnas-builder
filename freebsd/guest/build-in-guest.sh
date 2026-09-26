@@ -6,9 +6,9 @@
 # can't run on the Linux runner directly).
 #
 # Delivered into the guest already mounted at /fnas-seed before this
-# script runs -- vbox-driver.sh's typed command mounts a cd9660 seed ISO
-# there, qemu-driver.sh's expect script mounts a virtio-9p share at the
-# same path instead. Either way this script finds fnas-payload.tar
+# script runs -- both drivers burn the seed onto a cd9660 ISO labelled
+# FNASSEED and type the command that mounts it there. This script finds
+# fnas-payload.tar
 # (freedomnas-core/profiles/webui, staged host-side by
 # fnas_install_core() into a scratch dir and tarred up -- same target
 # layout as the Debian image, just transported differently since there's
@@ -21,9 +21,10 @@
 # below rather than hardcoded so this script doesn't care which backend
 # actually booted it.
 #
-# Must end by echoing FNAS_BUILD_MARKER_* and powering off -- the host
-# side (expect driver for QEMU, VMState polling for VirtualBox) watches
-# for that (see freebsd/qemu-driver.sh / freebsd/vbox-driver.sh).
+# Must end by powering off -- the host side waits for that (QEMU exiting
+# under -no-reboot, VMState polling for VirtualBox) and then reads the
+# fnas:build_complete pool property (see freebsd/qemu-driver.sh /
+# freebsd/vbox-driver.sh).
 set -eu
 
 MNT=/mnt
@@ -51,6 +52,7 @@ fail() {
 }
 
 [ -n "${INSTALL_ROOT:-}" ] && [ -n "${CONFIG_DIR:-}" ] && [ -n "${PACKAGES:-}" ] || fail "env.sh names no INSTALL_ROOT/CONFIG_DIR/PACKAGES"
+[ -n "${ADMIN_CREATE:-}" ] && [ -n "${ADMIN_SET_PASSWORD:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ] && [ -n "${LOCK_ROOT:-}" ] || fail "env.sh names no ADMIN_CREATE/ADMIN_SET_PASSWORD/ADMIN_PASSWORD/LOCK_ROOT"
 
 DISK=""
 for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
@@ -145,6 +147,13 @@ hostname="freedomnas"
 zfs_enable="YES"
 sshd_enable="YES"
 cron_enable="YES"
+ifconfig_DEFAULT="DHCP"
+EOF
+# Matches freedomnas-profiles' installer-freebsd.json loader_conf: without
+# zfs_load the kernel can't mount the root dataset ("unknown file system").
+cat >> "$MNT/boot/loader.conf" <<EOF
+zfs_load="YES"
+vfs.root.mountfrom="zfs:$POOL/ROOT/$BENAME"
 EOF
 mkdir -p "$MNT/boot/efi"
 echo "${DISK}p2  /boot/efi  msdosfs  rw  2  2" >> "$MNT/etc/fstab"
@@ -222,12 +231,20 @@ printf '%s\n' \
     > "$MNT/usr/local/etc/sudoers.d/freedomnas"
 chmod 0440 "$MNT/usr/local/etc/sudoers.d/freedomnas"
 
+# base.txz leaves root with an empty password: lock it, and create the
+# default administrator the WebUI signs in with (commands from
+# freedomnas-profiles' users-freebsd.json, via build.sh).
+chroot "$MNT" /bin/sh -c "$ADMIN_CREATE" || fail "create the default administrator"
+printf '%s\n' "$ADMIN_PASSWORD" | chroot "$MNT" /bin/sh -c "$ADMIN_SET_PASSWORD" \
+    || fail "set the default administrator's password"
+chroot "$MNT" /bin/sh -c "$LOCK_ROOT" || fail "lock root"
+
 log "=== Cleanup ==="
 umount "$MNT/boot/efi" || true
-# Marks the pool as a genuinely completed build. The VirtualBox backend
-# (see vbox-driver.sh) has no console text to check for
-# FNAS_BUILD_MARKER_SUCCESS/FAILED like the QEMU/expect path does --
-# both success and fail() end in a plain `poweroff`, so a bare "VM
+# Marks the pool as a genuinely completed build. Neither backend has
+# console text to check for FNAS_BUILD_MARKER_SUCCESS/FAILED (mfsBSD's
+# console stays on video) -- both success and fail() end in a plain
+# `poweroff`, so a bare "VM
 # stopped" signal can't tell the two apart. This property is what lets
 # the host distinguish them after the fact: set only on this path, on
 # the imported pool, before it's exported for the last time.
