@@ -38,6 +38,8 @@ IMG_PATH="${1:-$SCRIPT_DIR/debian.img}"
 IMG_SIZE="${2:-8G}"
 MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 MNT="/mnt/fnas-build-$EDITION"
+# On-disk name, for what goes inside the image; on the build host the pool
+# is $FNAS_POOL (see common/zfs-layout.sh).
 ROOT_DATASET="rpool/ROOT/$EDITION"
 
 . "$COMMON_DIR/partition.sh"
@@ -54,7 +56,7 @@ curl sudo locales"
 
 cleanup() {
     umount -R "$MNT" 2>/dev/null || true
-    fnas_zfs_layout_cleanup rpool
+    fnas_zfs_layout_cleanup
     fnas_partition_cleanup
 }
 trap cleanup EXIT
@@ -81,7 +83,8 @@ ff02::1    ip6-allnodes
 ff02::2    ip6-allrouters
 EOF
 mkdir -p "$MNT/boot/efi"
-echo "$PART1  /boot/efi  vfat  defaults  0  2" >> "$MNT/etc/fstab"
+# By label: $PART1 is the build host's loop device, which the target won't have.
+echo "LABEL=EFI  /boot/efi  vfat  defaults  0  2" >> "$MNT/etc/fstab"
 cat > "$MNT/etc/apt/sources.list" <<EOF
 deb $MIRROR trixie main contrib non-free non-free-firmware
 deb $MIRROR trixie-updates main contrib non-free non-free-firmware
@@ -96,9 +99,22 @@ done
 cp /etc/resolv.conf "$MNT/etc/resolv.conf"
 
 echo "=== [6/9] Installing packages in chroot ==="
-chroot "$MNT" apt-get update -qq
+chroot "$MNT" env DEBIAN_FRONTEND=noninteractive apt-get update -qq
+# topgrade isn't in Debian: it comes from FreedomNAS's own APT repository,
+# added with the same commands freedomnas-installer runs
+# (installer-debian.json, repositories.core), which need curl.
+chroot "$MNT" env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl
+python3 - "$REPOS_DIR/freedomnas-profiles/installer/installer-debian.json" <<'PYEOF' |
+import json, sys
+for cmd in json.load(open(sys.argv[1]))["repositories"]["core"]:
+    print(cmd)
+PYEOF
+while IFS= read -r cmd; do
+    chroot "$MNT" /bin/sh -c "$cmd"
+done
+chroot "$MNT" env DEBIAN_FRONTEND=noninteractive apt-get update -qq
 # shellcheck disable=SC2086
-chroot "$MNT" apt-get install -y --no-install-recommends $BASE_PACKAGES
+chroot "$MNT" env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $BASE_PACKAGES
 
 echo "=== [7/9] Installing freedomnas-core/profiles/webui ==="
 fnas_install_core "$MNT" "$REPOS_DIR"
@@ -224,7 +240,7 @@ python3 -c 'import sys; sys.stdout.write(sys.argv[1].format(username=sys.argv[2]
 echo "=== Unmounting and compressing ==="
 umount "$MNT/boot/efi"
 for m in run sys proc dev/pts dev; do umount "$MNT/$m" 2>/dev/null || true; done
-zpool export rpool
+fnas_zfs_layout_cleanup
 losetup -d "$LOOP"
 trap - EXIT   # cleanup already done manually above, in the right order
 
