@@ -204,6 +204,15 @@ cat > "$ROOT/root/.bash_profile" <<'EOF'
 [ -f ~/.bashrc ] && . ~/.bashrc
 if [ "$(tty)" = /dev/tty1 ] && [ ! -e /run/freedomnas-install.started ]; then
     : > /run/freedomnas-install.started
+    # An image build (common/vm-install.sh) attaches a disc labelled
+    # FNASSEED: run its script unattended instead of the menus.
+    seed="$(blkid -L FNASSEED 2>/dev/null || true)"
+    if [ -n "$seed" ]; then
+        mkdir -p /run/fnas-seed
+        mount -o ro "$seed" /run/fnas-seed
+        sh /run/fnas-seed/run.sh 2>&1 | tee /dev/ttyS0
+        poweroff
+    fi
     freedomnas-install
     echo
     echo "freedomnas-install exited. Run it again with: freedomnas-install"

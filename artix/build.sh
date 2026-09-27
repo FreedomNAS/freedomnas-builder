@@ -1,32 +1,23 @@
 #!/bin/sh
-# artix/build.sh -- STUB (Phase 3, not implemented, not wired into CI).
+# artix/build.sh — Artix disk image, one per init system, installed by
+# freedomnas-installer inside the live ISO (common/vm-install.sh).
 #
-# Artix is Linux + dracut-capable, so like void/build.sh it CAN reuse
-# common/partition.sh, common/zfs-layout.sh, common/install-core.sh, and
-# the shared Clover+UKI boot chain exactly as debian/build.sh does. What
-# actually differs:
-#
-#   - Base system bootstrap: `pacstrap` against Artix's own repos
-#     (base + base-devel + openrc, using an Artix mirrorlist -- NOT
-#     Arch's own repos, which assume systemd is present) instead of
-#     debootstrap. Requires an Artix-flavored pacman.conf pointing at
-#     Artix's repositories, not Arch's.
-#
-#   - Package list: freedomnas-profiles/packages/*.json's "artix"
-#     sections (already added) give the package names; BASE_PACKAGES in
-#     this script should mirror debian/build.sh's list but pulled from
-#     those JSON files, same caveat as void/build.sh.
-#
-#   - OpenRC service wiring: firstboot.sh's cron entry doesn't apply --
-#     OpenRC boots via /etc/init.d + runlevels. The equivalent is an
-#     OpenRC init script at /etc/init.d/freedomnas-webui (following
-#     init/openrc.json's rc-service/rc-update conventions) invoking
-#     firstboot.sh, added to the default runlevel via
-#     `rc-update add freedomnas-webui default` at build time instead of
-#     the cron @reboot trick debian/build.sh uses.
-#
-# Until this is built out, `artix` is deliberately excluded from
-# .forgejo/workflows/build-images.yml's matrix.
+# Usage: artix/build.sh <openrc|dinit|runit> [image-path] [size]
+# Writes <image-path>.zst (default artix/artix-<init>.img.zst). The init
+# systems offered are installer-artix.json's installer_meta.init_systems.
 set -eu
-echo "artix/build.sh is not implemented yet (Phase 3). See header comment." >&2
-exit 1
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+COMMON_DIR="$SCRIPT_DIR/../common"
+REPOS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
+
+INIT="${1:?usage: artix/build.sh <openrc|dinit|runit> [image-path] [size]}"
+IMG_PATH="${2:-$SCRIPT_DIR/artix-$INIT.img}"
+IMG_SIZE="${3:-10G}"
+
+. "$COMMON_DIR/vm-install.sh"
+. "$COMMON_DIR/compress.sh"
+
+fnas_vm_install "$IMG_PATH" "$IMG_SIZE" artix "$INIT" "$REPOS_DIR"
+fnas_compress "$IMG_PATH"
+echo "Done: ${IMG_PATH}.zst"
