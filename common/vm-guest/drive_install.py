@@ -99,6 +99,7 @@ class ScriptedDialog(DialogManager):
 
 
 config = Configuration()
+config.image_mode = True
 config.target_os = EDITION
 config.target_root = TARGET_ROOT
 os.makedirs(TARGET_ROOT, exist_ok=True)
