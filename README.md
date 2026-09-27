@@ -163,3 +163,11 @@ a `.forgejo/workflows/notify-image-builder.yml` that fires this repo's
 `workflow_dispatch` on every push to `main`. See
 [docs/ci-setup.md](docs/ci-setup.md) for the token and self-hosted runner
 this requires.
+
+## License
+
+GPL-2.0-or-later: the GNU General Public License, version 2 or (at your
+option) any later version. The text of version 2 is in `LICENSE`.
+
+The images it produces contain software under many licenses, each
+under its own.
