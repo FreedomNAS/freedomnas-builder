@@ -236,6 +236,8 @@ chroot "$MNT" /bin/sh -c "$ADMIN_CREATE"
 python3 -c 'import sys; sys.stdout.write(sys.argv[1].format(username=sys.argv[2], password=sys.argv[3]))' \
     "$ADMIN_PASSWORD_FORMAT" "$ADMIN_USER" "$ADMIN_PASSWORD" \
     | chroot "$MNT" /bin/sh -c "$ADMIN_SET_PASSWORD"
+mkdir -p "$MNT/etc/freedomnas"
+: > "$MNT/etc/freedomnas/setup-pending"
 
 echo "=== Unmounting and compressing ==="
 umount "$MNT/boot/efi"

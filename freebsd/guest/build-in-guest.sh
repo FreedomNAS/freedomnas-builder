@@ -238,6 +238,7 @@ chroot "$MNT" /bin/sh -c "$ADMIN_CREATE" || fail "create the default administrat
 printf '%s\n' "$ADMIN_PASSWORD" | chroot "$MNT" /bin/sh -c "$ADMIN_SET_PASSWORD" \
     || fail "set the default administrator's password"
 chroot "$MNT" /bin/sh -c "$LOCK_ROOT" || fail "lock root"
+mkdir -p "$MNT$CONFIG_DIR" && : > "$MNT$CONFIG_DIR/setup-pending" || fail "mark the setup as pending"
 
 log "=== Cleanup ==="
 umount "$MNT/boot/efi" || true
