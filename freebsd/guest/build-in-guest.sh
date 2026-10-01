@@ -162,7 +162,7 @@ log "=== [6/8] Boot chain (loader.efi -> ESP fallback path) ==="
 mount -t msdosfs "${DISK}p2" "$MNT/boot/efi" || fail "mount efi"
 mkdir -p "$MNT/boot/efi/EFI/BOOT"
 # Matches freedomnas-profiles/freebsd.json's bootloader.install_efi_loader
-# template -- same fallback-path trick debian/build.sh uses Clover for:
+# template -- same fallback-path trick the Linux images use Clover for:
 # EFI/BOOT/BOOTX64.efi is what UEFI firmware boots automatically when no
 # NVRAM entry exists, i.e. exactly the state of a freshly flashed disk.
 # FreeBSD just doesn't need a third-party shim to land there.

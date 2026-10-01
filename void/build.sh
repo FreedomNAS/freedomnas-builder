@@ -1,10 +1,9 @@
 #!/bin/sh
 # void/build.sh -- STUB (Phase 3, not implemented, not wired into CI).
 #
-# Void is Linux + dracut-capable, so unlike FreeBSD it CAN reuse
-# common/partition.sh, common/zfs-layout.sh, common/install-core.sh, and
-# the Clover+UKI boot chain in ../freedomnas-profiles/assets/ exactly as
-# debian/build.sh does. What actually differs:
+# Void is Linux + dracut-capable, so unlike FreeBSD it CAN be installed
+# by freedomnas-installer inside the live ISO (common/vm-install.sh), the
+# way debian/build.sh and artix/build.sh do. What actually differs:
 #
 #   - Base system bootstrap: xbps-install's static bootstrap
 #     (xbps-install -S -R <mirror>/current -r $MNT base-voidstrap, per
@@ -21,15 +20,14 @@
 #
 #   - Package list: freedomnas-profiles/packages/*.json's "void" sections
 #     (already added) give the package names; BASE_PACKAGES in this
-#     script should mirror debian/build.sh's list but pulled from those
-#     JSON files rather than hardcoded, to avoid the two drifting apart.
+#     script should come from those JSON files, as the installer's do.
 #
 #   - runit service wiring: firstboot.sh's cron entry doesn't apply --
 #     Void boots via runit directly. The equivalent is a runit service
 #     directory under /etc/runit/sv/freedomnas-webui (or /etc/sv/, per
 #     init/runit.json's convention) with a `run` script invoking
 #     firstboot.sh, symlinked into /etc/runit/runsvdir/default/ instead
-#     of the cron @reboot trick debian/build.sh uses.
+#     of the cron @reboot trick the other Linux images use.
 #
 # Until this is built out, `void` is deliberately excluded from
 # .forgejo/workflows/build-images.yml's matrix.

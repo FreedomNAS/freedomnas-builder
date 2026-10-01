@@ -40,8 +40,9 @@ updated just uses the new value.
 Codeberg's hosted/shared Forgejo Actions runners do **not** support
 privileged containers or Docker-in-Docker
 ([docs.codeberg.org/ci/actions](https://docs.codeberg.org/ci/actions/)).
-`debian/build.sh` needs loop devices, mounts, and `chroot` — none of
-which work on an unprivileged hosted runner. `build-images.yml`'s actual
+The Linux images (`debian/build.sh`, `artix/build.sh`) boot the live ISO
+under QEMU with KVM, and building that ISO (`live/build.sh`) needs root and
+`arch-chroot` — none of which work on an unprivileged hosted runner. `build-images.yml`'s actual
 build job therefore targets a self-hosted runner; only the lightweight
 notify-trigger workflows in core/profiles/webui stay on Codeberg's
 hosted pool.
@@ -71,7 +72,7 @@ is lost, just repeat step 1–2 with a freshly generated token.
 
 `freebsd/build.sh` boots a real FreeBSD environment under QEMU to run
 `gpart`/`zpool`/`pkg` (see its header comment for why — Linux can't run
-these natively). On top of everything `debian/build.sh` needs, the
+these natively). On top of what the Linux images need, the
 self-hosted runner also needs:
 
 - `qemu-system-x86_64` (run with `FREEBSD_BACKEND=qemu`) and `xorriso`

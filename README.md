@@ -3,9 +3,9 @@
 Builds the pre-built, flashable disk images that are FreedomNAS's primary
 install path per [ADR-002](../freedomnas-specs/IMAGE-BASED-INSTALLATION.md) — "flash and go"
 instead of running an interactive installer. Each image is bootable on
-**both UEFI and BIOS from the same file**; see the design note at the top
-of [`debian/build.sh`](debian/build.sh) for how that's achieved without a
-live machine's UEFI NVRAM to register against.
+**both UEFI and BIOS from the same file**; see the header of
+[`common/vm-install.sh`](common/vm-install.sh) for how that's achieved
+without a live machine's UEFI NVRAM to register against.
 
 This repo is the primary install path. `freedomnas-installer` is the
 secondary one — rewritten profile-driven per ADR-002's 2026-09-04 follow-up
@@ -17,10 +17,10 @@ same on-disk layout.
 
 | Edition | Status | Init | Notes |
 |---------|--------|------|-------|
-| Debian (trixie) | **Phase 1 — implemented** | systemd | Ports the proven boot chain from the installer; runs directly on the Linux runner |
+| Debian (trixie) | **Implemented** | systemd | Installed by freedomnas-installer inside the live ISO under QEMU (`common/vm-install.sh`); kernel and ZFS from linux-freedomnas |
+| Artix Linux | **Implemented** | OpenRC, dinit, runit | Same as Debian, one image per init system |
 | FreeBSD (14+) | **Phase 2 — implemented** | bsd_rc | Native boot chain (gptzfsboot/loader.efi, no UKI/Clover); build runs *inside* a QEMU-booted FreeBSD guest — see `freebsd/build.sh` header for why |
 | Void Linux | Phase 3 — stub | runit | "Exotic" edition — see `void/build.sh` header |
-| Artix Linux | Phase 3 — stub | OpenRC | "Exotic" edition — see `artix/build.sh` header |
 
 ## Live installer ISO
 
@@ -87,7 +87,8 @@ common/            Shared build-time function libraries (sourced by each
                     pools (`python -m freedomnas unlock-pools`), then
                     reconciles or hands off to the WebUI's first-run wizard
                     per ADR-002
-debian/build.sh     Implemented — chroots directly on the Linux runner
+debian/build.sh     Debian image, through common/vm-install.sh
+artix/build.sh      Artix image per init system, through common/vm-install.sh
 freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
   build.sh            Disk image: stages the payload, runs the guest
                       script, checks the pool property it sets on success
@@ -101,15 +102,15 @@ freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
   vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 void/build.sh       Stub — Phase 3
-artix/build.sh      Stub — Phase 3
 docs/ci-setup.md    Token + self-hosted runner setup for maintainers
 .forgejo/workflows/ CI — see docs/ci-setup.md before expecting this to run
 ```
 
 ## Prerequisites for a local build
 
-This repo expects `freedomnas-core`, `freedomnas-profiles`, and
-`freedomnas-webui` checked out as **sibling directories** — the same
+This repo expects `freedomnas-core`, `freedomnas-profiles`,
+`freedomnas-webui`, `freedomnas-installer` and `freedomnas-docs` checked
+out as **sibling directories** — the same
 convention `engine.py` already uses for its dev-mode profile search path.
 The boot-chain assets (Clover, `zz-dracut-uki`) live in
 `../freedomnas-profiles/assets/`, not duplicated into this repo.
@@ -123,20 +124,23 @@ git-projects/freedomnas/
 └── freedomnas-image-builder
 ```
 
-Building requires root, loop devices, `sgdisk`, `mkfs.vfat`, ZFS
-userspace tools, `debootstrap`, and `dracut` on the build host — none of
-which Codeberg's hosted Forgejo Actions runners provide (see
-[docs/ci-setup.md](docs/ci-setup.md)). Run locally as root, or on the
-self-hosted runner:
+The Linux images need `qemu-system-x86_64`, `/dev/kvm`, `xorriso`,
+`rsync`, `zstd` and a live ISO built by `live/build.sh` from the same
+checkouts (`FNAS_LIVE_ISO` to point elsewhere). Nothing else runs on the
+build host and no root is needed: the installer partitions, bootstraps and
+installs inside the VM. Codeberg's hosted Forgejo Actions runners provide
+none of this (see [docs/ci-setup.md](docs/ci-setup.md)); run locally or on
+the self-hosted runner:
 
 ```sh
-sudo ./debian/build.sh [output-path] [image-size]   # defaults: debian/debian.img, 8G
+./debian/build.sh [output-path] [image-size]        # defaults: debian/debian.img, 12G
+./artix/build.sh <openrc|dinit|runit> [output-path] [image-size]   # defaults: artix/artix-<init>.img, 10G
 sudo ./freebsd/build.sh [output-path] [image-size]  # defaults: freebsd/freebsd.img, 8G
 ./freebsd/live.sh [output-path]                   # default: freebsd/freedomnas-live-freebsd.iso
 ```
 
 `freebsd/build.sh` additionally needs `qemu-system-x86_64` (with
-`FREEBSD_BACKEND=qemu`) or VirtualBox, plus `xorriso`, on the runner (not required for `debian/build.sh`), and `/dev/kvm` for
+`FREEBSD_BACKEND=qemu`) or VirtualBox, plus `xorriso`, on the runner, and `/dev/kvm` for
 reasonable build times — it boots a real FreeBSD environment under QEMU
 to run gpart/zpool/pkg, since those don't exist on Linux; see the
 header comment in `freebsd/build.sh` for why. It also downloads (and

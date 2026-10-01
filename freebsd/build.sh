@@ -1,8 +1,8 @@
 #!/bin/sh
 # freebsd/build.sh — FreeBSD ZFS image build (Phase 2).
 #
-# Unlike debian/build.sh, this can't chroot straight into a mounted
-# target on the Linux runner: FreeBSD's own gpart, ZFS tooling, and
+# Unlike the Linux images, this can't let freedomnas-installer install
+# it from the Linux live ISO: FreeBSD's own gpart, ZFS tooling, and
 # bectl-compatible boot-environment layout don't exist on Linux, and
 # Linux's zpool/zfs aren't a substitute (different userland, no
 # guarantee the resulting pool is bootable by FreeBSD's loader). So
