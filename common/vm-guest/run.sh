@@ -7,6 +7,8 @@
 # log: the last line is "vm-install: RESULT ok" or "vm-install: RESULT failed".
 set -u
 SEED=/run/fnas-seed
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+export PATH
 set -a
 . "$SEED/seed.env"
 set +a
