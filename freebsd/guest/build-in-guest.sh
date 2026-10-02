@@ -82,7 +82,7 @@ fi
 log "=== [1/8] Partitioning $DISK (gpt: freebsd-boot + efi + freebsd-zfs) ==="
 gpart create -s gpt "$DISK" || fail "gpart create"
 gpart add -t freebsd-boot -s 512k -l bootfs0 "$DISK" || fail "gpart add freebsd-boot"
-# 512MiB -- matches the Debian/Linux editions' ESP size elsewhere in
+# 1GiB -- matches the Linux editions' ESP size elsewhere in
 # this project. Growing this further doesn't reliably clear FAT32's
 # 65525-cluster minimum on its own: newfs_msdos auto-scales
 # sectors-per-cluster up alongside partition size, so cluster COUNT
@@ -91,7 +91,7 @@ gpart add -t freebsd-boot -s 512k -l bootfs0 "$DISK" || fail "gpart add freebsd-
 # -- doubling 1GiB to 2GiB gained only 16 clusters). Forcing the
 # smallest cluster size explicitly (-c 1, see below) fixes this
 # properly instead of chasing the threshold with ever-bigger partitions.
-gpart add -t efi -s 512m -l efiboot0 "$DISK" || fail "gpart add efi"
+gpart add -t efi -s 1g -l efiboot0 "$DISK" || fail "gpart add efi"
 gpart add -t freebsd-zfs -l zfs0 "$DISK" || fail "gpart add freebsd-zfs"
 
 log "=== [2/8] Formatting EFI partition ==="

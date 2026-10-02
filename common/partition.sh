@@ -2,7 +2,7 @@
 # common/partition.sh — unified ESP+rpool layout on a loopback image file.
 #
 # Generalized from freedomnas-installer/lib/disk_installer.py: same
-# 2-partition scheme (512 MiB ESP EF00 + rest BF00 rpool), same for
+# 2-partition scheme (1 GiB ESP EF00 + rest BF00 rpool), same for
 # every edition and both firmware types. The only difference from the
 # live installer is the target: a loop device backed by a sparse image
 # file instead of a real /dev/sdX.
@@ -23,7 +23,7 @@ fnas_partition() {
     IMG="$img_path"
 
     sgdisk --zap-all --clear "$LOOP"
-    sgdisk -n 1:0:+512MiB -t 1:EF00 "$LOOP"
+    sgdisk -n 1:0:+1GiB   -t 1:EF00 "$LOOP"
     sgdisk -n 2:0:-0      -t 2:BF00 "$LOOP"
     partprobe "$LOOP" || true
     udevadm settle
