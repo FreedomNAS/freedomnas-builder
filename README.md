@@ -20,7 +20,7 @@ same on-disk layout.
 | Debian (trixie) | **Implemented** | systemd | Installed by freedomnas-installer inside the live ISO under QEMU (`common/vm-install.sh`); kernel and ZFS from linux-freedomnas |
 | Artix Linux | **Implemented** | OpenRC, dinit, runit | Same as Debian, one image per init system |
 | FreeBSD (14+) | **Phase 2 — implemented** | bsd_rc | Native boot chain (gptzfsboot/loader.efi, no UKI/Clover); build runs *inside* a QEMU-booted FreeBSD guest — see `freebsd/build.sh` header for why |
-| Void Linux | Phase 3 — stub | runit | "Exotic" edition — see `void/build.sh` header |
+| Void Linux | **Implemented** | runit | Same as Debian; kernel from Void, OpenZFS modules prebuilt by freedomnas-void |
 
 ## Live installer ISO
 
@@ -101,7 +101,7 @@ freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
   qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU monitor
   vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
-void/build.sh       Stub — Phase 3
+void/build.sh       Void image, installed by freedomnas-installer in the live ISO
 docs/ci-setup.md    Token + self-hosted runner setup for maintainers
 .forgejo/workflows/ CI — see docs/ci-setup.md before expecting this to run
 ```

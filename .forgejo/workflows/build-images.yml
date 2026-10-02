@@ -3,9 +3,9 @@ name: build-images
 # Triggered manually, or by core/profiles/webui's notify-image-builder.yml
 # calling this repo's workflow_dispatch API on every push to their main.
 #
-# Matrix covers "debian" and "freebsd" -- artix builds one image per init
-# system and void is still a stub. Runs on a self-hosted runner because
-# QEMU/KVM (debian: the live ISO installs it in a VM) and gpart/zpool
+# Matrix covers "debian", "void" and "freebsd" -- artix builds one image per
+# init system. Runs on a self-hosted runner because
+# QEMU/KVM (debian, void: the live ISO installs them in a VM) and gpart/zpool
 # (freebsd) all need device access
 # Codeberg's hosted runners don't grant -- see ../../docs/ci-setup.md
 # before expecting this to actually execute. The freebsd job additionally
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [debian, freebsd]
+        edition: [debian, void, freebsd]
     steps:
       - name: Check out freedomnas-image-builder
         uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
           path: freedomnas-docs
 
       - name: Build the live ISO
-        if: matrix.edition == 'debian'
+        if: matrix.edition != 'freebsd'
         run: sudo freedomnas-image-builder/live/build.sh
 
       - name: Build ${{ matrix.edition }} image
