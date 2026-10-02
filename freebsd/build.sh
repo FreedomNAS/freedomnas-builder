@@ -59,11 +59,17 @@ fnas_path() {
     python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["paths"][sys.argv[2]])' \
         "$REPOS_DIR/freedomnas-profiles/os/os-freebsd.json" "$1"
 }
-# The packages too: core and samba-cifs, as freedomnas-profiles lists them
-# for FreeBSD.
+# The packages too: core, samba-cifs and nfs, as freedomnas-profiles lists
+# them for FreeBSD -- the features the Linux images install as well.
 fnas_packages() {
     python3 -c 'import json, sys; print(" ".join(p for c in sys.argv[2:] for p in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"]["packages"]))' \
-        "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs
+        "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs nfs
+}
+# And their services, enabled as freedomnas-installer enables them: without
+# this Samba was installed but never started, and NFS neither.
+fnas_services() {
+    python3 -c 'import json, sys; print(" ".join(s for c in sys.argv[2:] for k in ("early_services", "services") for s in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"].get(k, [])))' \
+        "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs nfs
 }
 # And the accounts: base.txz ships root with an empty password, and the
 # WebUI signs in only administrators of the profile's sudo_group, so the
@@ -87,11 +93,16 @@ FREEBSD_RELEASE="$FREEBSD_RELEASE"
 INSTALL_ROOT="$(fnas_path install_root)"
 CONFIG_DIR="$(fnas_path config_dir)"
 PACKAGES="$(fnas_packages)"
+SERVICES="$(fnas_services)"
 ADMIN_PASSWORD=$(python3 -c 'import shlex, sys; print(shlex.quote(sys.argv[1]))' "$ADMIN_PASSWORD")
 $(fnas_user_commands)
 EOF
 
 echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="
+# A fresh file, never one left from an earlier build: truncate keeps the old
+# contents, the guest then fails on the pool already there, and the check
+# below reads the old pool's fnas:build_complete=yes as this build's success.
+rm -f "$IMG_PATH"
 truncate -s "$IMG_SIZE" "$IMG_PATH"
 
 echo "=== [3/4] Fetching mfsBSD live ISO (cached under freebsd/.cache/) ==="

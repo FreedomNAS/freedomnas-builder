@@ -204,6 +204,19 @@ SITE_DIR="$(chroot "$MNT" python3 -c "import sysconfig; print(sysconfig.get_path
     && [ -n "$SITE_DIR" ] \
     && echo "$INSTALL_ROOT/core" > "$MNT$SITE_DIR/freedomnas-core.pth" \
     || log "WARNING: could not place freedomnas-core.pth in the target's site-packages"
+# $SERVICES is freedomnas-profiles' core/samba-cifs/nfs "freebsd" services;
+# `service X enable` sets the right rcvar (nfsd is nfs_server_enable).
+for service in $SERVICES; do
+    chroot "$MNT" service "$service" enable || fail "service $service enable"
+done
+# mountd refuses to start without /etc/exports, and base.txz has none. The
+# V4: root and nfsv4_server_enable let NFSv4 clients in as well as NFSv3 ones;
+# matches freedomnas-profiles' installer-freebsd.json nfs_exports and rc_conf.
+printf '%s\n' \
+    '# NFSv4 clients see the exports below through this root; the exports' \
+    '# themselves are added by FreedomNAS, one line each (exports(5)).' \
+    'V4: /' > "$MNT/etc/exports"
+echo 'nfsv4_server_enable="YES"' >> "$MNT/etc/rc.conf"
 umount "$MNT/dev" || true
 
 log "=== [8/8] First-boot wiring (cron @reboot -- FreeBSD ships cron by default) ==="
