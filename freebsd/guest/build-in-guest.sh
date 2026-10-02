@@ -154,9 +154,19 @@ EOF
 cat >> "$MNT/boot/loader.conf" <<EOF
 zfs_load="YES"
 vfs.root.mountfrom="zfs:$POOL/ROOT/$BENAME"
+kern.geom.label.disk_ident.enable="0"
+kern.geom.label.gptid.enable="0"
 EOF
+# The two kern.geom.label lines are bsdinstall's too. Without them a disk
+# also appears as diskid/DISK-<serial>; the partitions can attach there, and
+# once ZFS opens one the da0pN and gpt/ names wither — fstab's
+# /dev/gpt/efiboot0 is gone and boot stops in single-user mode (seen on a
+# USB stick, 2026-10-02).
 mkdir -p "$MNT/boot/efi"
-echo "${DISK}p2  /boot/efi  msdosfs  rw  2  2" >> "$MNT/etc/fstab"
+# By GPT label, not ${DISK}p2: $DISK is the build VM's name for the disk
+# (vtbd0), and the flashed image boots as da0/ada0/nda0 on real hardware —
+# a device that doesn't exist there drops boot into the single-user shell.
+echo "/dev/gpt/efiboot0  /boot/efi  msdosfs  rw  2  2" >> "$MNT/etc/fstab"
 
 log "=== [6/8] Boot chain (loader.efi -> ESP fallback path) ==="
 mount -t msdosfs "${DISK}p2" "$MNT/boot/efi" || fail "mount efi"
