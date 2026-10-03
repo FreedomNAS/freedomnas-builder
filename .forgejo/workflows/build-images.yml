@@ -11,8 +11,8 @@ name: build-images
 # QEMU/KVM (debian, void: the live ISO installs them in a VM) and gpart/zpool
 # (freebsd) all need device access
 # Codeberg's hosted runners don't grant -- see ../../docs/ci-setup.md
-# before expecting this to actually execute. The freebsd job additionally
-# needs qemu-system-x86_64 + expect on the runner (docs/ci-setup.md §3).
+# before expecting this to actually execute. The freebsd job boots
+# mfsBSD under QEMU (qemu-system-x86_64, docs/ci-setup.md §3).
 on:
   workflow_dispatch: {}
 
@@ -81,7 +81,10 @@ jobs:
       - name: Build ${{ matrix.image }} image
         run: |
           chmod +x freedomnas-image-builder/${{ matrix.edition }}/build.sh
-          sudo freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
+          # FreeBSD boots mfsBSD under QEMU: VirtualBox, the script's default,
+          # is not on the runner. sudo drops the environment, env passes it.
+          sudo env FREEBSD_BACKEND=qemu \
+            freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
             "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img"
 
       - name: Upload image artifact
