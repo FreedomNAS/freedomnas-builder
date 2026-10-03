@@ -3,8 +3,11 @@ name: build-images
 # Triggered manually, or by core/profiles/webui's notify-image-builder.yml
 # calling this repo's workflow_dispatch API on every push to their main.
 #
-# Matrix covers "debian", "void" and "freebsd" -- artix builds one image per
-# init system. Runs on a self-hosted runner because
+# Matrix covers debian, void, freebsd and artix, which builds one image per
+# init system. Every image, and the live ISO once (from the debian job),
+# goes to a release of the GitHub showcase repo FreedomNAS/freedomnas-image
+# (ci/publish-release.sh) when the GH_RELEASE_TOKEN secret is set: one
+# release per run, images-<run number>. Runs on a self-hosted runner because
 # QEMU/KVM (debian, void: the live ISO installs them in a VM) and gpart/zpool
 # (freebsd) all need device access
 # Codeberg's hosted runners don't grant -- see ../../docs/ci-setup.md
@@ -19,7 +22,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [debian, void, freebsd]
+        include:
+          - { edition: debian, image: debian }
+          - { edition: void, image: void }
+          - { edition: freebsd, image: freebsd }
+          - { edition: artix, init: openrc, image: artix-openrc }
+          - { edition: artix, init: dinit, image: artix-dinit }
+          - { edition: artix, init: runit, image: artix-runit }
     steps:
       - name: Check out freedomnas-image-builder
         uses: actions/checkout@v4
@@ -63,15 +72,33 @@ jobs:
         if: matrix.edition != 'freebsd'
         run: sudo freedomnas-image-builder/live/build.sh
 
-      - name: Build ${{ matrix.edition }} image
+      - name: Build ${{ matrix.image }} image
         run: |
           chmod +x freedomnas-image-builder/${{ matrix.edition }}/build.sh
-          sudo freedomnas-image-builder/${{ matrix.edition }}/build.sh \
-            "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.edition }}.img"
+          sudo freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
+            "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img"
 
       - name: Upload image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.edition }}-image
-          path: freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.edition }}.img.zst
+          name: ${{ matrix.image }}-image
+          path: freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst
           retention-days: 14
+
+      # The live ISO built here is the plain one: build-ssh.sh's carries
+      # whoever built it's key and is never published.
+      - name: Publish to the GitHub showcase
+        env:
+          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          RELEASE_TAG: images-${{ github.run_number }}
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }}
+        run: |
+          if [ -z "$GH_RELEASE_TOKEN" ]; then
+            echo "GH_RELEASE_TOKEN is not set: nothing published"
+            exit 0
+          fi
+          set -- "freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst"
+          if [ "${{ matrix.image }}" = debian ]; then
+            set -- "$@" freedomnas-image-builder/live/freedomnas-live.iso
+          fi
+          sh freedomnas-image-builder/ci/publish-release.sh "$@"

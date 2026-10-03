@@ -86,3 +86,37 @@ self-hosted runner also needs:
   `base.txz`/`kernel.txz` and packages from FreeBSD's mirrors over the
   guest's usermode-NAT network, which rides on the runner's own
   connection).
+
+## 4. `GH_RELEASE_TOKEN` — publishes the images on GitHub
+
+The images are built here; GitHub only hosts the downloads, as releases of
+the showcase repo [FreedomNAS/freedomnas-image](https://github.com/FreedomNAS/freedomnas-image):
+release assets are public, permanent and have no bandwidth cap, where
+workflow artifacts expire and need a login. Each run of `build-images.yml`
+fills one prerelease, `images-<run number>`, through `ci/publish-release.sh`:
+every image and, from the debian job, the live ISO, each with its
+`.sha256`. An asset may hold just under 2 GiB; a bigger file goes up in
+1900 MiB parts, joined with `cat` (the release text says how). Without the
+secret the step publishes nothing and the build still succeeds.
+
+The token, from the GitHub account of an organization member:
+
+1. **Settings → Developer settings → Personal access tokens → Fine-grained
+   tokens → Generate new token.**
+2. **Resource owner: FreedomNAS** (the organization, not the account).
+3. **Repository access: Only select repositories → freedomnas-image.**
+4. **Repository permissions → Contents: Read and write** (Metadata:
+   read-only comes with it). Nothing else.
+5. Copy the token: GitHub shows it once.
+
+If FreedomNAS is not offered as the resource owner, or the token stays
+pending, the organization must allow fine-grained tokens: organization
+**Settings → Personal access tokens → Settings → Allow access via
+fine-grained personal access tokens**, and approve it under **Pending
+requests** if approval is required.
+
+Then on Codeberg, in this repo: **Settings → Actions → Secrets → Add
+secret**, name `GH_RELEASE_TOKEN`. When it expires, generate a new one and
+replace the secret.
+
+`build-ssh.sh`'s ISO is never published: it carries the builder's key.
