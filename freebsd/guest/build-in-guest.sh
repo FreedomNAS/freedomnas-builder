@@ -148,6 +148,7 @@ zfs_enable="YES"
 sshd_enable="YES"
 cron_enable="YES"
 ifconfig_DEFAULT="DHCP"
+ntpd_sync_on_start="YES"
 EOF
 # Matches freedomnas-profiles' installer-freebsd.json loader_conf: without
 # zfs_load the kernel can't mount the root dataset ("unknown file system").
