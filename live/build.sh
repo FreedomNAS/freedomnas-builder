@@ -158,8 +158,10 @@ cat >> "$ROOT/etc/portage/make.conf" <<EOF
 MAKEOPTS="-j$(nproc)"
 FEATURES="\${FEATURES} buildpkg -binpkg-request-signature"
 EOF
+# stage3's own gentoo.conf already says it; a second line is an error.
 for conf in "$ROOT"/etc/portage/binrepos.conf/*.conf; do
-    printf 'verify-signature = true\n' >> "$conf"
+    grep -q '^[[:space:]]*verify-signature' "$conf" \
+        || printf 'verify-signature = true\n' >> "$conf"
 done
 cat > "$ROOT/etc/portage/package.use/freedomnas-live" <<'EOF'
 # The live initramfs is built by this script with dmsquash-live, not by
