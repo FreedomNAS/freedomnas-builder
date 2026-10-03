@@ -65,9 +65,13 @@ fnas_vm_install() {
     truncate -s "$img_size" "$img_path"
 
     echo "vm-install.sh: installing $edition${init:+/$init} into $img_path (serial log: $serial_log)" >&2
+    # discard=unmap: the installer trims the pool before exporting it, and
+    # each trimmed block becomes a hole in $img_path, so what ZFS freed
+    # during the install (package caches, replaced files) compresses to
+    # nothing instead of to its old contents.
     timeout "${FNAS_VM_TIMEOUT:-3h}" qemu-system-x86_64 \
         -enable-kvm -cpu host -smp "${FNAS_VM_CPUS:-4}" -m "${FNAS_VM_MEM:-4096}" \
-        -drive "file=$img_path,format=raw,if=virtio" \
+        -drive "file=$img_path,format=raw,if=virtio,discard=unmap,detect-zeroes=unmap" \
         -drive "file=$live_iso,media=cdrom,index=0" \
         -drive "file=$work/seed.iso,media=cdrom,index=1" \
         -boot d \
