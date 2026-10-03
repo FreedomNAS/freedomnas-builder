@@ -59,7 +59,7 @@ ensure_release() {
     [ -n "$id" ] && { echo "$id"; return; }
     body=$(jq -n --arg tag "$RELEASE_TAG" --arg name "$RELEASE_NAME" '{
         tag_name: $tag, name: $name, prerelease: true,
-        body: "FreedomNAS disk images and live ISO, built from the dev branches.\n\nEach file has a `.sha256` next to it. `.img.zst` images are written to a disk with Balena Etcher, or `zstd -dc <image>.img.zst | sudo dd of=/dev/sdX bs=4M status=progress`. A file split in `.part-aa`, `.part-ab`, ... is joined first: `cat <file>.part-* > <file>`."
+        body: "FreedomNAS disk images and live ISO.\n\nEach file has a `.sha256` next to it. `.img.zst` images are written to a disk with Balena Etcher, or `zstd -dc <image>.img.zst | sudo dd of=/dev/sdX bs=4M status=progress`. A file split in `.part-aa`, `.part-ab`, ... is joined first: `cat <file>.part-* > <file>`."
     }')
     # Another job of the same run may create it between our GET and POST:
     # then the POST is refused and the release is there to be found.

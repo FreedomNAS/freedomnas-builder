@@ -35,37 +35,43 @@ jobs:
         with:
           path: freedomnas-image-builder
 
-      # Sibling checkouts -- build.sh expects freedomnas-core,
+      # Sibling checkouts, from the branch this run was started on (dev
+      # builds dev everywhere) -- build.sh expects freedomnas-core,
       # freedomnas-profiles, freedomnas-webui next to this repo (same
       # convention engine.py's dev-mode profile search uses).
       - name: Check out freedomnas-core
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-core
+          ref: ${{ github.ref_name }}
           path: freedomnas-core
 
       - name: Check out freedomnas-profiles
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-profiles
+          ref: ${{ github.ref_name }}
           path: freedomnas-profiles
 
       - name: Check out freedomnas-webui
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-webui
+          ref: ${{ github.ref_name }}
           path: freedomnas-webui
 
       - name: Check out freedomnas-installer
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-installer
+          ref: ${{ github.ref_name }}
           path: freedomnas-installer
 
       - name: Check out freedomnas-docs
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-docs
+          ref: ${{ github.ref_name }}
           path: freedomnas-docs
 
       - name: Build the live ISO
@@ -91,7 +97,7 @@ jobs:
         env:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
           RELEASE_TAG: images-${{ github.run_number }}
-          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }}
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ github.ref_name }})
         run: |
           if [ -z "$GH_RELEASE_TOKEN" ]; then
             echo "GH_RELEASE_TOKEN is not set: nothing published"
