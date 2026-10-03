@@ -94,8 +94,8 @@ the showcase repo [FreedomNAS/freedomnas-image](https://github.com/FreedomNAS/fr
 release assets are public, permanent and have no bandwidth cap, where
 workflow artifacts expire and need a login. Each run of `build-images.yml`
 fills one prerelease, `images-<run number>`, through `ci/publish-release.sh`:
-every image and, from the debian job, the live ISO, each with its
-`.sha256`. An asset may hold just under 2 GiB; a bigger file goes up in
+the live ISO (built once by the `live-iso` job, which the image jobs
+then install from) and every image, each with its `.sha256`. An asset may hold just under 2 GiB; a bigger file goes up in
 1900 MiB parts, joined with `cat` (the release text says how). Without the
 secret the step publishes nothing and the build still succeeds.
 

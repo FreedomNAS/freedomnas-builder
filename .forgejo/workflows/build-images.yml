@@ -2,22 +2,92 @@ name: build-images
 
 # Triggered manually, or by core/profiles/webui's notify-image-builder.yml
 # calling this repo's workflow_dispatch API on every push to their main.
+# Start it on the branch to build: every repo is checked out from it.
 #
-# Matrix covers debian, void, freebsd and artix, which builds one image per
-# init system. Every image, and the live ISO once (from the debian job),
-# goes to a release of the GitHub showcase repo FreedomNAS/freedomnas-image
-# (ci/publish-release.sh) when the GH_RELEASE_TOKEN secret is set: one
-# release per run, images-<run number>. Runs on a self-hosted runner because
-# QEMU/KVM (debian, void: the live ISO installs them in a VM) and gpart/zpool
-# (freebsd) all need device access
-# Codeberg's hosted runners don't grant -- see ../../docs/ci-setup.md
-# before expecting this to actually execute. The freebsd job boots
-# mfsBSD under QEMU (qemu-system-x86_64, docs/ci-setup.md §3).
+# live-iso builds the live ISO once; the image jobs (debian, void, freebsd
+# and artix, one image per init system) install from that same ISO,
+# handed over in /var/tmp/freedomnas-ci/run-<id>/ on the runner, and
+# cleanup removes that directory at the end whatever happened. The ISO and
+# every image go to a release of the GitHub showcase repo
+# FreedomNAS/freedomnas-image (ci/publish-release.sh) when the
+# GH_RELEASE_TOKEN secret is set: one release per run, images-<run number>.
+#
+# Runs on a self-hosted runner, on the host, as root through sudo: QEMU/KVM
+# (debian, void, artix: the live ISO installs them in a VM; freebsd boots
+# mfsBSD under QEMU) and the live ISO's chroot need what Codeberg's hosted
+# runners don't grant -- see ../../docs/ci-setup.md. No pool is ever created
+# or imported on the runner itself: they exist only inside the VMs.
 on:
   workflow_dispatch: {}
 
+env:
+  CI_DIR: /var/tmp/freedomnas-ci/run-${{ github.run_id }}
+  CHECKOUT_REF: ${{ github.ref || 'refs/heads/dev' }}
+
 jobs:
-  build:
+  live-iso:
+    runs-on: [self-hosted, image-builder]
+    steps:
+      - name: Check out freedomnas-image-builder
+        uses: actions/checkout@v4
+        with:
+          path: freedomnas-image-builder
+
+      # Sibling checkouts, from the branch this run was started on -- the
+      # build scripts find freedomnas-<name> next to this repo. Without a
+      # ref, actions/checkout asks GitHub's API for the default branch,
+      # which Codeberg does not serve.
+      - name: Check out freedomnas-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-profiles
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-profiles
+
+      - name: Check out freedomnas-installer
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-installer
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-installer
+
+      # The live ISO's Portage tree carries it (live/build.sh, step 3).
+      - name: Check out freedomnas-overlay
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-overlay
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-overlay
+
+      # The plain ISO: build-ssh.sh's carries whoever built it's key and is
+      # never published.
+      - name: Build the live ISO
+        run: |
+          sudo freedomnas-image-builder/live/build.sh "$PWD/freedomnas-live.iso"
+          sudo install -d -m 755 "$CI_DIR"
+          sudo install -m 644 freedomnas-live.iso "$CI_DIR/freedomnas-live.iso"
+
+      - name: Publish to the GitHub showcase
+        env:
+          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          RELEASE_TAG: images-${{ github.run_number }}
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ github.ref_name }})
+        run: |
+          if [ -z "$GH_RELEASE_TOKEN" ]; then
+            echo "GH_RELEASE_TOKEN is not set: nothing published"
+            exit 0
+          fi
+          sh freedomnas-image-builder/ci/publish-release.sh freedomnas-live.iso
+
+      # The builds run as root and leave root-owned files in the workspace;
+      # the runner, not root, could not delete them when the job ends, and
+      # the next job would find a half-cleaned workspace.
+      - name: Give the workspace back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
+
+  images:
+    needs: live-iso
     runs-on: [self-hosted, image-builder]
     strategy:
       fail-fast: false
@@ -35,64 +105,49 @@ jobs:
         with:
           path: freedomnas-image-builder
 
-      # Sibling checkouts, from the branch this run was started on (dev
-      # builds dev everywhere) -- build.sh expects freedomnas-core,
-      # freedomnas-profiles, freedomnas-webui next to this repo (same
-      # convention engine.py's dev-mode profile search uses).
       - name: Check out freedomnas-core
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-core
-          ref: ${{ github.ref || 'refs/heads/dev' }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-core
 
       - name: Check out freedomnas-profiles
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-profiles
-          ref: ${{ github.ref || 'refs/heads/dev' }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-profiles
 
       - name: Check out freedomnas-webui
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-webui
-          ref: ${{ github.ref || 'refs/heads/dev' }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-webui
 
       - name: Check out freedomnas-installer
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-installer
-          ref: ${{ github.ref || 'refs/heads/dev' }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-installer
 
       - name: Check out freedomnas-docs
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-docs
-          ref: ${{ github.ref || 'refs/heads/dev' }}
+          ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-docs
-
-      # The live ISO's Portage tree carries it (live/build.sh, step 3).
-      - name: Check out freedomnas-overlay
-        if: matrix.edition != 'freebsd'
-        uses: actions/checkout@v4
-        with:
-          repository: FreedomNAS/freedomnas-overlay
-          ref: ${{ github.ref || 'refs/heads/dev' }}
-          path: freedomnas-overlay
-
-      - name: Build the live ISO
-        if: matrix.edition != 'freebsd'
-        run: sudo freedomnas-image-builder/live/build.sh
 
       - name: Build ${{ matrix.image }} image
         run: |
           chmod +x freedomnas-image-builder/${{ matrix.edition }}/build.sh
-          # FreeBSD boots mfsBSD under QEMU: VirtualBox, the script's default,
-          # is not on the runner. sudo drops the environment, env passes it.
-          sudo env FREEBSD_BACKEND=qemu \
+          # The Linux editions install from live-iso's ISO (FNAS_LIVE_ISO);
+          # FreeBSD boots mfsBSD under QEMU: VirtualBox, the script's
+          # default, is not on the runner. sudo drops the environment, env
+          # passes it.
+          sudo env FNAS_LIVE_ISO="$CI_DIR/freedomnas-live.iso" FREEBSD_BACKEND=qemu \
             freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
             "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img"
 
@@ -103,8 +158,6 @@ jobs:
           path: freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst
           retention-days: 14
 
-      # The live ISO built here is the plain one: build-ssh.sh's carries
-      # whoever built it's key and is never published.
       - name: Publish to the GitHub showcase
         env:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
@@ -115,16 +168,17 @@ jobs:
             echo "GH_RELEASE_TOKEN is not set: nothing published"
             exit 0
           fi
-          set -- "freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst"
-          if [ "${{ matrix.image }}" = debian ]; then
-            set -- "$@" freedomnas-image-builder/live/freedomnas-live.iso
-          fi
-          sh freedomnas-image-builder/ci/publish-release.sh "$@"
+          sh freedomnas-image-builder/ci/publish-release.sh \
+            "freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst"
 
-      # The builds run as root and leave root-owned files (images, the ISO)
-      # in the workspace; the runner, not root, cannot delete them when the
-      # job ends, and the next job finds a half-cleaned workspace. Give it
-      # back whatever happened above.
       - name: Give the workspace back to the runner
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" .
+
+  cleanup:
+    needs: [live-iso, images]
+    if: always()
+    runs-on: [self-hosted, image-builder]
+    steps:
+      - name: Remove this run's live ISO from the runner
+        run: sudo rm -rf "$CI_DIR"
