@@ -74,6 +74,15 @@ jobs:
           ref: ${{ github.ref || 'refs/heads/dev' }}
           path: freedomnas-docs
 
+      # The live ISO's Portage tree carries it (live/build.sh, step 3).
+      - name: Check out freedomnas-overlay
+        if: matrix.edition != 'freebsd'
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-overlay
+          ref: ${{ github.ref || 'refs/heads/dev' }}
+          path: freedomnas-overlay
+
       - name: Build the live ISO
         if: matrix.edition != 'freebsd'
         run: sudo freedomnas-image-builder/live/build.sh
