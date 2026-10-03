@@ -42,6 +42,14 @@ and EFI images, plus the MBR/GPT a USB boot needs). The root filesystem is
 a squashfs mounted by dracut's `dmsquash-live` with an overlayfs layer in
 RAM. On boot, root is logged in on tty1 and the installer starts; `dhcpcd`
 is enabled, `sshd` is installed but not started (root has no password).
+`live/build-ssh.sh` builds the same system as `freedomnas-live-ssh.iso`,
+for installing over the network a machine with no usable screen or
+keyboard: root accepts one public key and `sshd` starts at boot, so
+`ssh root@<address>` and then `freedomnas-install`. The key is the first
+argument, else `FNAS_LIVE_SSH_KEY`, else the invoking user's
+`~/.ssh/id_ed25519.pub`, `id_ecdsa.pub` or `id_rsa.pub`; root still has no
+password, so there is no build without a key. (`build-ssh.sh` only sets
+`FNAS_LIVE_SSH_KEY` for `build.sh`, which checks the key before building.)
 
 How it is built:
 
@@ -64,6 +72,7 @@ How it is built:
 
 ```sh
 sudo ./live/build.sh [output.iso]     # default: live/freedomnas-live.iso
+sudo ./live/build-ssh.sh [key.pub] [output.iso]   # default: live/freedomnas-live-ssh.iso
 ```
 
 Host requirements: `curl`, `gpg`/`gpgv`, `tar`, `xz`, `python3`, `rsync`
@@ -101,6 +110,7 @@ freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
   qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU monitor
   vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
+live/build-ssh.sh   The same ISO, reachable over SSH with one public key
 void/build.sh       Void image, installed by freedomnas-installer in the live ISO
 docs/ci-setup.md    Token + self-hosted runner setup for maintainers
 .forgejo/workflows/ CI — see docs/ci-setup.md before expecting this to run

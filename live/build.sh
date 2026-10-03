@@ -38,6 +38,9 @@ RELEASE_KEY="${GENTOO_RELEASE_KEY:-/usr/share/openpgp-keys/gentoo-release.asc}"
 RELEASE_KEY_URL="https://qa-reports.gentoo.org/output/service-keys.gpg"
 XBPS_STATIC="https://repo-default.voidlinux.org/static"
 VOLID="FNAS_LIVE"
+# A public key file: root accepts it over SSH and sshd starts at boot, for
+# machines with no usable screen or keyboard.
+SSH_KEY="${FNAS_LIVE_SSH_KEY:-}"
 
 ROOT="$WORK/root"
 CACHE="$WORK/cache"
@@ -61,6 +64,11 @@ for tool in curl gpg gpgv tar xz python3 rsync sha256sum arch-chroot mount mount
 done
 [ "$(id -u)" -eq 0 ] || { echo "live/build.sh: must run as root" >&2; exit 1; }
 [ -f "$PROFILE" ] || { echo "live/build.sh: missing $PROFILE" >&2; exit 1; }
+# Checked now, not when the root is already built: a typo would cost a whole build.
+if [ -n "$SSH_KEY" ]; then
+    grep -Eq '^(ssh-|ecdsa-|sk-)' "$SSH_KEY" 2>/dev/null || {
+        echo "live/build.sh: $SSH_KEY is not a readable SSH public key" >&2; exit 1; }
+fi
 case "$WORK" in
     /?*) ;;
     *) echo "live/build.sh: FNAS_LIVE_WORK must be an absolute path other than /" >&2; exit 1 ;;
@@ -219,6 +227,11 @@ if [ "$(tty)" = /dev/tty1 ] && [ ! -e /run/freedomnas-install.started ]; then
 fi
 EOF
 in_root rc-update add dhcpcd default
+if [ -n "$SSH_KEY" ]; then
+    install -d -m 700 "$ROOT/root/.ssh"
+    install -m 600 "$SSH_KEY" "$ROOT/root/.ssh/authorized_keys"
+    in_root rc-update add sshd default
+fi
 
 echo "=== [8/9] initramfs and squashfs ==="
 KV="$(ls "$ROOT/lib/modules" | sort -V | tail -n1)"
