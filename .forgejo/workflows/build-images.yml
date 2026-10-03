@@ -51,6 +51,28 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           path: freedomnas-installer
 
+      # The ISO carries FreedomNAS itself too (fnas_install_core, step 7).
+      - name: Check out freedomnas-core
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-core
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-core
+
+      - name: Check out freedomnas-webui
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-webui
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-webui
+
+      - name: Check out freedomnas-docs
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-docs
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-docs
+
       # The live ISO's Portage tree carries it (live/build.sh, step 3).
       - name: Check out freedomnas-overlay
         uses: actions/checkout@v4
