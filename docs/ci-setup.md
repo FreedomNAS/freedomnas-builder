@@ -120,3 +120,15 @@ secret**, name `GH_RELEASE_TOKEN`. When it expires, generate a new one and
 replace the secret.
 
 `build-ssh.sh`'s ISO is never published: it carries the builder's key.
+
+## 5. Root processes of cancelled or failed jobs
+
+The builds run as root through `sudo`, and the runner user cannot stop
+root's processes: cancelling a run on Codeberg leaves its emerge, QEMU or
+zstd running. Every job therefore starts and ends (always, even after a
+failure) with `ci/stop-leftovers.sh`, which stops root's processes chrooted
+into the live ISO's build root or naming a CI path (the runner's
+workspaces, `/var/tmp/freedomnas-live`, `/var/tmp/freedomnas-ci`) together
+with their descendants, and unmounts what is left under the build root.
+Nothing else root runs is touched. `sudo env DRY_RUN=1 sh
+ci/stop-leftovers.sh` only lists what it would stop.

@@ -33,6 +33,12 @@ jobs:
         with:
           path: freedomnas-image-builder
 
+      # A cancelled run may never reach its last steps, and the runner user
+      # cannot stop what ran as root: whatever an earlier job left running
+      # (emerge, QEMU, zstd) is stopped before this one starts.
+      - name: Stop what an earlier job left running
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
       # Sibling checkouts, from the branch this run was started on -- the
       # build scripts find freedomnas-<name> next to this repo. Without a
       # ref, actions/checkout asks GitHub's API for the default branch,
@@ -104,6 +110,10 @@ jobs:
       # The builds run as root and leave root-owned files in the workspace;
       # the runner, not root, could not delete them when the job ends, and
       # the next job would find a half-cleaned workspace.
+      - name: Stop what this job left running
+        if: always()
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
       - name: Give the workspace back to the runner
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" .
@@ -126,6 +136,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: freedomnas-image-builder
+
+      # A cancelled run may never reach its last steps, and the runner user
+      # cannot stop what ran as root: whatever an earlier job left running
+      # (emerge, QEMU, zstd) is stopped before this one starts.
+      - name: Stop what an earlier job left running
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
 
       - name: Check out freedomnas-core
         uses: actions/checkout@v4
@@ -186,6 +202,10 @@ jobs:
           sh freedomnas-image-builder/ci/publish-release.sh \
             "freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst"
 
+      - name: Stop what this job left running
+        if: always()
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
       - name: Give the workspace back to the runner
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" .
@@ -195,5 +215,17 @@ jobs:
     if: always()
     runs-on: [self-hosted, image-builder]
     steps:
+      - name: Check out freedomnas-image-builder
+        uses: actions/checkout@v4
+        with:
+          path: freedomnas-image-builder
+
+      - name: Stop what the run left running
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
       - name: Remove this run's live ISO from the runner
         run: sudo rm -rf "$CI_DIR"
+
+      - name: Give the workspace back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
