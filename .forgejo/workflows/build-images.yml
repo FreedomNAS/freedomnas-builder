@@ -173,13 +173,6 @@ jobs:
             freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
             "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img"
 
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.image }}-image
-          path: freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img.zst
-          retention-days: 14
-
       - name: Publish to the GitHub showcase
         env:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
