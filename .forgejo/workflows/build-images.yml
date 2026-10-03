@@ -120,3 +120,11 @@ jobs:
             set -- "$@" freedomnas-image-builder/live/freedomnas-live.iso
           fi
           sh freedomnas-image-builder/ci/publish-release.sh "$@"
+
+      # The builds run as root and leave root-owned files (images, the ISO)
+      # in the workspace; the runner, not root, cannot delete them when the
+      # job ends, and the next job finds a half-cleaned workspace. Give it
+      # back whatever happened above.
+      - name: Give the workspace back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
