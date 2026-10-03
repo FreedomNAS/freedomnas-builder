@@ -145,6 +145,16 @@ for key in ("make_conf", "binrepos_conf", "package_use", "package_accept_keyword
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(entry["content"].format(**values))
 PYEOF
+# For this build only, not for an installed Gentoo (installer-gentoo.json's
+# make.conf stays as it is): every core of the build host, and what is
+# compiled kept in the binpkgs cache, bind-mounted from $CACHE. The binhost
+# has no ZFS, so without buildpkg every build compiled it again.
+cat >> "$ROOT/etc/portage/make.conf" <<EOF
+
+# live/build.sh
+MAKEOPTS="-j$(nproc)"
+FEATURES="\${FEATURES} buildpkg"
+EOF
 cat > "$ROOT/etc/portage/package.use/freedomnas-live" <<'EOF'
 # The live initramfs is built by this script with dmsquash-live, not by
 # the kernel package's own hook.
