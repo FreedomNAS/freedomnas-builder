@@ -148,13 +148,19 @@ PYEOF
 # For this build only, not for an installed Gentoo (installer-gentoo.json's
 # make.conf stays as it is): every core of the build host, and what is
 # compiled kept in the binpkgs cache, bind-mounted from $CACHE. The binhost
-# has no ZFS, so without buildpkg every build compiled it again.
+# has no ZFS, so without buildpkg every build compiled it again. Packages
+# built here carry no signature, which binpkg-request-signature refuses even
+# for them: the binhost's signatures stay mandatory through binrepos.conf's
+# verify-signature instead, which leaves local packages alone.
 cat >> "$ROOT/etc/portage/make.conf" <<EOF
 
 # live/build.sh
 MAKEOPTS="-j$(nproc)"
-FEATURES="\${FEATURES} buildpkg"
+FEATURES="\${FEATURES} buildpkg -binpkg-request-signature"
 EOF
+for conf in "$ROOT"/etc/portage/binrepos.conf/*.conf; do
+    printf 'verify-signature = true\n' >> "$conf"
+done
 cat > "$ROOT/etc/portage/package.use/freedomnas-live" <<'EOF'
 # The live initramfs is built by this script with dmsquash-live, not by
 # the kernel package's own hook.
