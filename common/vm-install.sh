@@ -45,6 +45,7 @@ fnas_vm_install() {
             "$repos_dir/freedomnas-$repo/" "$seed/repos/freedomnas-$repo/"
     done
     fnas_repo_version "$repos_dir/freedomnas-webui" > "$seed/repos/freedomnas-webui/VERSION"
+    fnas_channel "$repos_dir/freedomnas-installer" > "$seed/repos/freedomnas-installer/CHANNEL"
     if [ -f "$repos_dir/freedomnas-docs/mkdocs.yml" ]; then
         mkdir -p "$seed/repos/freedomnas-docs"
         fnas_build_docs "$repos_dir/freedomnas-docs" "$seed/repos/freedomnas-docs" \

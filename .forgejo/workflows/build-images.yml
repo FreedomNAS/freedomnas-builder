@@ -23,6 +23,7 @@ on:
 env:
   CI_DIR: /var/tmp/freedomnas-ci/run-${{ github.run_id }}
   CHECKOUT_REF: ${{ github.ref || 'refs/heads/dev' }}
+  FNAS_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'main' || 'dev' }}
 
 jobs:
   live-iso:
@@ -91,7 +92,7 @@ jobs:
       # never published.
       - name: Build the live ISO
         run: |
-          sudo freedomnas-image-builder/live/build.sh "$PWD/freedomnas-live.iso"
+          sudo env FNAS_CHANNEL="$FNAS_CHANNEL" freedomnas-image-builder/live/build.sh "$PWD/freedomnas-live.iso"
           sudo install -d -m 755 "$CI_DIR"
           sudo install -m 644 freedomnas-live.iso "$CI_DIR/freedomnas-live.iso"
 
@@ -185,7 +186,7 @@ jobs:
           # FreeBSD boots mfsBSD under QEMU: VirtualBox, the script's
           # default, is not on the runner. sudo drops the environment, env
           # passes it.
-          sudo env FNAS_LIVE_ISO="$CI_DIR/freedomnas-live.iso" FREEBSD_BACKEND=qemu \
+          sudo env FNAS_LIVE_ISO="$CI_DIR/freedomnas-live.iso" FNAS_CHANNEL="$FNAS_CHANNEL" FREEBSD_BACKEND=qemu \
             freedomnas-image-builder/${{ matrix.edition }}/build.sh ${{ matrix.init }} \
             "$PWD/freedomnas-image-builder/${{ matrix.edition }}/${{ matrix.image }}.img"
 

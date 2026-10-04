@@ -22,6 +22,18 @@ fnas_repo_version() {
     fi
 }
 
+fnas_channel() {
+    case "${FNAS_CHANNEL:-}" in
+        main|dev) printf '%s\n' "$FNAS_CHANNEL" ;;
+        "") if [ "$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null)" = main ]; then
+                echo main
+            else
+                echo dev
+            fi ;;
+        *) echo "install-core.sh: FNAS_CHANNEL must be main or dev, not $FNAS_CHANNEL" >&2; return 1 ;;
+    esac
+}
+
 fnas_build_docs() {
     src="$1"
     dest="$2"

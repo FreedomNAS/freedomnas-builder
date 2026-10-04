@@ -219,6 +219,7 @@ mkdir -p "$ROOT/usr/lib/freedomnas/installer"
 rsync -a --chown=0:0 --exclude='.git' --exclude='__pycache__' --exclude='tests' \
     --exclude='debian' --exclude='PKGBUILD' --exclude='*.md' \
     "$REPOS_DIR/freedomnas-installer/" "$ROOT/usr/lib/freedomnas/installer/"
+fnas_channel "$REPOS_DIR/freedomnas-installer" > "$ROOT/usr/lib/freedomnas/installer/CHANNEL"
 chmod 755 "$ROOT/usr/lib/freedomnas/installer/setup.py"
 ln -sf ../lib/freedomnas/installer/setup.py "$ROOT/usr/bin/freedomnas-install"
 
