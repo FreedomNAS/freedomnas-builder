@@ -13,7 +13,9 @@ set -eu
 fnas_repo_version() {
     base="$(sed -n '1s/^[^(]*(\([^)]*\)).*/\1/p' "$1/debian/changelog")"
     base="${base%-*}"
-    if git -C "$1" rev-parse --git-dir >/dev/null 2>&1; then
+    if git -C "$1" describe --exact-match --tags --match 'v[0-9]*' >/dev/null 2>&1; then
+        printf '%s\n' "$base"
+    elif git -C "$1" rev-parse --git-dir >/dev/null 2>&1; then
         printf '%s+%s.%s\n' "$base" \
             "$(git -C "$1" log -1 --format=%cd --date=format:%Y%m%d%H%M%S)" \
             "$(git -C "$1" log -1 --format=%h)"

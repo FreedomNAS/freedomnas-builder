@@ -2,7 +2,8 @@ name: build-images
 
 # Triggered manually, or by core/profiles/webui's notify-image-builder.yml
 # calling this repo's workflow_dispatch API on every push to their main.
-# Start it on the branch to build: every repo is checked out from it.
+# Start it on the branch to build: on dev every repo is checked out at
+# dev; on main (or master) at the newest release tag, vX.Y.Z.
 #
 # live-iso builds the live ISO once; the image jobs (debian, void, freebsd
 # and artix, one image per init system) install from that same ISO,
@@ -23,15 +24,32 @@ on:
 env:
   CI_DIR: /var/tmp/freedomnas-ci/run-${{ github.run_id }}
   CHECKOUT_REF: ${{ github.ref || 'refs/heads/dev' }}
-  FNAS_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'main' || 'dev' }}
+  FNAS_CHANNEL: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'main' || 'dev' }}
 
 jobs:
   live-iso:
     runs-on: [self-hosted, image-builder]
     steps:
+      # A run on main (or master) builds the newest release tag (vX.Y.Z,
+      # the same name in every FreedomNAS repository), not the branches' tips.
+      - name: Pick the ref to build
+        run: |
+          ref="$CHECKOUT_REF"
+          case "$ref" in
+            refs/heads/main|refs/heads/master)
+              tag="$(git ls-remote --tags --refs https://codeberg.org/FreedomNAS/freedomnas-core.git 'v*' \
+                | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1)"
+              [ -n "$tag" ] || { echo "no release tag on freedomnas-core" >&2; exit 1; }
+              ref="refs/tags/$tag" ;;
+          esac
+          echo "Building $ref"
+          echo "SRC_REF=$ref" >> "$GITHUB_ENV"
+          echo "SRC_NAME=${ref#refs/*/}" >> "$GITHUB_ENV"
+
       - name: Check out freedomnas-image-builder
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-image-builder
 
       # A cancelled run may never reach its last steps, and the runner user
@@ -40,22 +58,22 @@ jobs:
       - name: Stop what an earlier job left running
         run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
 
-      # Sibling checkouts, from the branch this run was started on -- the
-      # build scripts find freedomnas-<name> next to this repo. Without a
+      # Sibling checkouts, at the ref picked above -- the build scripts
+      # find freedomnas-<name> next to this repo. Without a
       # ref, actions/checkout asks GitHub's API for the default branch,
       # which Codeberg does not serve.
       - name: Check out freedomnas-profiles
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-profiles
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-profiles
 
       - name: Check out freedomnas-installer
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-installer
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-installer
 
       # The ISO carries FreedomNAS itself too (fnas_install_core, step 7).
@@ -63,21 +81,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-core
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-core
 
       - name: Check out freedomnas-webui
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-webui
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-webui
 
       - name: Check out freedomnas-docs
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-docs
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-docs
 
       # The live ISO's Portage tree carries it (live/build.sh, step 3).
@@ -85,7 +103,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-overlay
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-overlay
 
       # The plain ISO: build-ssh.sh's carries whoever built it's key and is
@@ -100,7 +118,7 @@ jobs:
         env:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
           RELEASE_TAG: images-${{ github.run_number }}
-          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ github.ref_name }})
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ env.SRC_NAME }})
         run: |
           if [ -z "$GH_RELEASE_TOKEN" ]; then
             echo "GH_RELEASE_TOKEN is not set: nothing published"
@@ -133,9 +151,26 @@ jobs:
           - { edition: artix, init: dinit, image: artix-dinit }
           - { edition: artix, init: runit, image: artix-runit }
     steps:
+      # A run on main (or master) builds the newest release tag (vX.Y.Z,
+      # the same name in every FreedomNAS repository), not the branches' tips.
+      - name: Pick the ref to build
+        run: |
+          ref="$CHECKOUT_REF"
+          case "$ref" in
+            refs/heads/main|refs/heads/master)
+              tag="$(git ls-remote --tags --refs https://codeberg.org/FreedomNAS/freedomnas-core.git 'v*' \
+                | sed 's|.*refs/tags/||' | grep -E '^v[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1)"
+              [ -n "$tag" ] || { echo "no release tag on freedomnas-core" >&2; exit 1; }
+              ref="refs/tags/$tag" ;;
+          esac
+          echo "Building $ref"
+          echo "SRC_REF=$ref" >> "$GITHUB_ENV"
+          echo "SRC_NAME=${ref#refs/*/}" >> "$GITHUB_ENV"
+
       - name: Check out freedomnas-image-builder
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-image-builder
 
       # A cancelled run may never reach its last steps, and the runner user
@@ -148,35 +183,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-core
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-core
 
       - name: Check out freedomnas-profiles
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-profiles
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-profiles
 
       - name: Check out freedomnas-webui
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-webui
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-webui
 
       - name: Check out freedomnas-installer
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-installer
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-installer
 
       - name: Check out freedomnas-docs
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-docs
-          ref: ${{ env.CHECKOUT_REF }}
+          ref: ${{ env.SRC_REF }}
           path: freedomnas-docs
 
       - name: Build ${{ matrix.image }} image
@@ -194,7 +229,7 @@ jobs:
         env:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
           RELEASE_TAG: images-${{ github.run_number }}
-          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ github.ref_name }})
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (${{ env.SRC_NAME }})
         run: |
           if [ -z "$GH_RELEASE_TOKEN" ]; then
             echo "GH_RELEASE_TOKEN is not set: nothing published"
