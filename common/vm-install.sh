@@ -59,6 +59,7 @@ fnas_vm_install() {
         echo "FNAS_HOSTNAME=freedomnas"
         printf 'FNAS_ADMIN_USER=%s\n' "${FNAS_ADMIN_USER:-admin}"
         printf 'FNAS_ADMIN_PASSWORD=%s\n' "${FNAS_ADMIN_PASSWORD:-freedomnas}"
+        printf 'FNAS_ROOTFS_URL=%s\n' "${FNAS_ROOTFS_URL:-}"
     } > "$seed/seed.env"
     xorriso -as mkisofs -quiet -R -J -V FNASSEED -o "$work/seed.iso" "$seed"
 

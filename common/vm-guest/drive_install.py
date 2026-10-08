@@ -67,6 +67,8 @@ class ScriptedDialog(DialogManager):
             "System Hostname": HOSTNAME,
             "Administrator Account": ADMIN_USER,
         }
+        if os.environ.get("FNAS_ROOTFS_URL"):
+            answers["Rootfs Tarball"] = os.environ["FNAS_ROOTFS_URL"]
         if title not in answers:
             raise Unanswered(f"inputbox {title!r}")
         print(f"[input] {title}: {answers[title]}", flush=True)
