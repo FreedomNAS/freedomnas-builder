@@ -147,8 +147,10 @@ for key in ("make_conf", "binrepos_conf", "package_use", "package_accept_keyword
 PYEOF
 # For this build only, not for an installed Gentoo (installer-gentoo.json's
 # make.conf stays as it is): every core of the build host, and what is
-# compiled kept in the binpkgs cache, bind-mounted from $CACHE. The binhost
-# has no ZFS, so without buildpkg every build compiled it again. Packages
+# compiled kept in the binpkgs cache, bind-mounted from $CACHE. sys-fs/zfs is
+# compiled at every build all the same: the profile's EMERGE_DEFAULT_OPTS
+# excludes it from binary packages, because the binhost's is built for the
+# source kernel and puts zfs.ko where gentoo-kernel-bin never looks. Packages
 # built here carry no signature, which binpkg-request-signature refuses even
 # for them: the binhost's signatures stay mandatory through binrepos.conf's
 # verify-signature instead, which leaves local packages alone.
@@ -196,6 +198,9 @@ mount --bind "$CACHE/repos-gentoo" "$ROOT/var/db/repos/gentoo"
 
 echo "=== [5/9] Installing packages ==="
 in_root emerge-webrsync --quiet
+# installkernel's microcode hook runs cpio while the kernel is installed,
+# and emerge may order cpio after the kernel: it comes first.
+in_root emerge --quiet --oneshot --noreplace app-arch/cpio
 # shellcheck disable=SC2086
 in_root emerge --quiet --noreplace $LIVE_PACKAGES
 
