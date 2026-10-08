@@ -61,15 +61,23 @@ fi
 
 log "Starting QEMU (monitor: $MON_SOCK)"
 # shellcheck disable=SC2086
+case "$MFSBSD_ISO" in
+    *.qcow2)
+        qemu-img create -q -f qcow2 -F qcow2 -b "$MFSBSD_ISO" "$WORK/build-env.qcow2"
+        BOOT_ARGS="-drive file=$WORK/build-env.qcow2,if=virtio,format=qcow2 -drive file=$IMG_PATH,if=virtio,format=raw -drive file=$SEED_ISO,media=cdrom,index=1,readonly=on"
+        TARGET_DISK=/dev/vtbd1
+        ;;
+    *)
+        BOOT_ARGS="-drive file=$IMG_PATH,if=virtio,format=raw -drive file=$MFSBSD_ISO,media=cdrom,index=0,readonly=on -drive file=$SEED_ISO,media=cdrom,index=1,readonly=on -boot d"
+        TARGET_DISK=""
+        ;;
+esac
 qemu-system-x86_64 \
     $KVM_ARGS \
     -m "${QEMU_MEM:-2048}" -smp "${QEMU_SMP:-2}" \
-    -no-reboot -display none -serial null \
+    -no-reboot -display "${QEMU_DISPLAY:-none}" -serial null \
     -monitor "unix:$MON_SOCK,server,nowait" \
-    -drive "file=$IMG_PATH,if=virtio,format=raw" \
-    -drive "file=$MFSBSD_ISO,media=cdrom,index=0,readonly=on" \
-    -drive "file=$SEED_ISO,media=cdrom,index=1,readonly=on" \
-    -boot d \
+    $BOOT_ARGS \
     -netdev user,id=net0 -device virtio-net-pci,netdev=net0 &
 QEMU_PID=$!
 
@@ -112,11 +120,13 @@ kill -0 "$QEMU_PID" 2>/dev/null || { log "QEMU exited before the login prompt"; 
 log "Sending login: root"
 type_line "root"
 sleep 6
-log "Sending Password: mfsroot"
-type_line "mfsroot"
-sleep 6
+if [ -z "$TARGET_DISK" ]; then
+    log "Sending Password: mfsroot"
+    type_line "mfsroot"
+    sleep 6
+fi
 log "Sending build command"
-type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/iso9660/FNASSEED /fnas-seed && sh /fnas-seed/$GUEST_SCRIPT"
+type_line "mkdir -p /fnas-seed && mount -t cd9660 /dev/iso9660/FNASSEED /fnas-seed && env FNAS_TARGET_DISK=$TARGET_DISK sh /fnas-seed/$GUEST_SCRIPT"
 
 log "Waiting for guest to power off ($GUEST_SCRIPT's completion signal)"
 i=0

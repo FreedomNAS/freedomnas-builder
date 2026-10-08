@@ -105,10 +105,10 @@ echo "=== [2/4] Preparing target raw image ($IMG_PATH, $IMG_SIZE) ==="
 rm -f "$IMG_PATH"
 truncate -s "$IMG_SIZE" "$IMG_PATH"
 
-echo "=== [3/4] Fetching mfsBSD live ISO (cached under freebsd/.cache/) ==="
-fnas_fetch_mfsbsd
+echo "=== [3/4] Fetching the build environment (cached under freebsd/.cache/) ==="
+fnas_fetch_build_env
 
-echo "=== [4/4] Booting mfsBSD (backend: $FREEBSD_BACKEND) and running build-in-guest.sh ==="
+echo "=== [4/4] Booting $(basename "$(fnas_build_env)") (backend: $FREEBSD_BACKEND) and running build-in-guest.sh ==="
 fnas_run_guest "$IMG_PATH" "$SEED_DIR" build-in-guest.sh
 
 fnas_verify_pool() {

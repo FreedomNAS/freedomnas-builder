@@ -44,6 +44,39 @@ fnas_fetch_mfsbsd() {
 # fnas_run_guest <disk> <seed-dir> <guest-script>: boot mfsBSD with <disk>
 # attached and run <seed-dir>/<guest-script> in it, until the guest powers
 # off. Whether the script succeeded is for the caller to check on <disk>.
+# The disk image is built inside FreeBSD's own VM image of the target
+# release (FREEBSD_BUILD_ENV=vm, the default with QEMU): its pkg is the one
+# the target gets, so the package database it writes is one the installed
+# pkg can open. mfsBSD lags behind (14.2), and its older pkg wrote a
+# database pkg 2.7 could not migrate. FREEBSD_BUILD_ENV=mfsbsd keeps the
+# old path; the live ISO and VirtualBox still use mfsBSD.
+FREEBSD_BUILD_ENV="${FREEBSD_BUILD_ENV:-vm}"
+VM_IMAGE_URL="${VM_IMAGE_URL:-https://download.freebsd.org/releases/VM-IMAGES/${FREEBSD_RELEASE}/amd64/Latest/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2.xz}"
+VM_IMAGE_CACHE="$SCRIPT_DIR/.cache/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2"
+
+fnas_fetch_build_env() {
+    if [ "$FREEBSD_BACKEND" != qemu ] || [ "$FREEBSD_BUILD_ENV" = mfsbsd ]; then
+        fnas_fetch_mfsbsd
+        return
+    fi
+    mkdir -p "$(dirname "$VM_IMAGE_CACHE")"
+    [ -f "$VM_IMAGE_CACHE" ] && return 0
+    curl -fL "$VM_IMAGE_URL" -o "$VM_IMAGE_CACHE.xz.part" || {
+        echo "mfsbsd.sh: could not fetch $VM_IMAGE_URL" >&2
+        return 1
+    }
+    xz -dc "$VM_IMAGE_CACHE.xz.part" > "$VM_IMAGE_CACHE.part" && rm -f "$VM_IMAGE_CACHE.xz.part" \
+        && mv -f "$VM_IMAGE_CACHE.part" "$VM_IMAGE_CACHE"
+}
+
+fnas_build_env() {
+    if [ "$FREEBSD_BACKEND" = qemu ] && [ "$FREEBSD_BUILD_ENV" != mfsbsd ]; then
+        echo "$VM_IMAGE_CACHE"
+    else
+        echo "$MFSBSD_ISO_CACHE"
+    fi
+}
+
 fnas_run_guest() {
     case "$FREEBSD_BACKEND" in
         virtualbox)
@@ -58,7 +91,7 @@ fnas_run_guest() {
             "$SCRIPT_DIR/vbox-driver.sh" "$1" "$2" "$MFSBSD_ISO_CACHE" "$3"
             ;;
         qemu)
-            "$SCRIPT_DIR/qemu-driver.sh" "$1" "$2" "$MFSBSD_ISO_CACHE" "$3"
+            "$SCRIPT_DIR/qemu-driver.sh" "$1" "$2" "$(fnas_build_env)" "$3"
             ;;
         *)
             echo "mfsbsd.sh: unknown FREEBSD_BACKEND '$FREEBSD_BACKEND' (expected virtualbox|qemu)" >&2

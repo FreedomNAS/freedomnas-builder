@@ -54,8 +54,8 @@ fail() {
 [ -n "${INSTALL_ROOT:-}" ] && [ -n "${CONFIG_DIR:-}" ] && [ -n "${PACKAGES:-}" ] || fail "env.sh names no INSTALL_ROOT/CONFIG_DIR/PACKAGES"
 [ -n "${ADMIN_CREATE:-}" ] && [ -n "${ADMIN_SET_PASSWORD:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ] && [ -n "${LOCK_ROOT:-}" ] || fail "env.sh names no ADMIN_CREATE/ADMIN_SET_PASSWORD/ADMIN_PASSWORD/LOCK_ROOT"
 
-DISK=""
-for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
+DISK="${FNAS_TARGET_DISK:-}"
+[ -n "$DISK" ] || for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
     [ -e "$candidate" ] && DISK="$candidate" && break
 done
 [ -n "$DISK" ] || fail "no target disk found (checked vtbd0 [QEMU virtio], ada0 [VirtualBox AHCI], da0)"
@@ -185,7 +185,7 @@ tar -xf "$SEED/fnas-payload.tar" -C "$MNT$INSTALL_ROOT/"
 
 cp /etc/resolv.conf "$MNT/etc/resolv.conf" 2>/dev/null || true
 mount -t devfs devfs "$MNT/dev" || fail "mount devfs"
-pkg -c "$MNT" bootstrap -y || fail "pkg bootstrap"
+chroot "$MNT" env ASSUME_ALWAYS_YES=yes pkg bootstrap -f || fail "pkg bootstrap"
 # $PACKAGES is freedomnas-profiles' packages/core.json and samba-cifs.json
 # "freebsd" lists, read by build.sh: the Python stack the core and the WebUI
 # import comes from FreeBSD's own py3NN-* packages, as the installer
@@ -200,7 +200,7 @@ pkg_install_ok=1
 for attempt in 1 2 3; do
     # $PACKAGES is split into words on purpose: one package per word.
     # shellcheck disable=SC2086
-    if pkg -c "$MNT" install -y $PACKAGES; then
+    if chroot "$MNT" pkg install -y $PACKAGES; then
         pkg_install_ok=0
         break
     fi
