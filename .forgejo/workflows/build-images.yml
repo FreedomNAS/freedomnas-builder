@@ -138,6 +138,7 @@ jobs:
         run: sudo chown -R "$(id -u):$(id -g)" .
 
   images:
+    name: Build ${{ matrix.image }} image
     needs: live-iso
     runs-on: [self-hosted, image-builder]
     strategy:
@@ -214,7 +215,7 @@ jobs:
           ref: ${{ env.SRC_REF }}
           path: freedomnas-docs
 
-      - name: Build ${{ matrix.image }} image
+      - name: Build the image
         run: |
           chmod +x freedomnas-image-builder/${{ matrix.edition }}/build.sh
           # The Linux editions install from live-iso's ISO (FNAS_LIVE_ISO);
