@@ -148,6 +148,7 @@ jobs:
         include:
           - { edition: debian, image: debian }
           - { edition: void, image: void }
+          - { edition: gentoo, image: gentoo }
           - { edition: freebsd, image: freebsd }
           - { edition: artix, init: openrc, image: artix-openrc }
           - { edition: artix, init: dinit, image: artix-dinit }

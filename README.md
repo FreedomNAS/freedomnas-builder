@@ -21,6 +21,7 @@ same on-disk layout.
 | Artix Linux | **Implemented** | OpenRC, dinit, runit | Same as Debian, one image per init system |
 | FreeBSD (14+) | **Phase 2 — implemented** | bsd_rc | Native boot chain (gptzfsboot/loader.efi, no UKI/Clover); build runs *inside* a QEMU-booted FreeBSD guest — see `freebsd/build.sh` header for why |
 | Void Linux | **Implemented** | runit | Same as Debian; kernel from Void, OpenZFS modules prebuilt by freedomnas-void |
+| Gentoo | **Implemented** | OpenRC | Same as Debian, from the newest openrc stage3 (`gentoo/build.sh` reads Gentoo's autobuilds pointer; `FNAS_ROOTFS_URL` overrides it); OpenZFS is compiled for gentoo-kernel-bin during the build, so it takes longer than the others |
 
 ## Live installer ISO
 
@@ -113,6 +114,7 @@ freebsd/            Implemented — runs its FreeBSD work in a FreeBSD guest
 live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 live/build-ssh.sh   The same ISO, reachable over SSH with one public key
 void/build.sh       Void image, installed by freedomnas-installer in the live ISO
+gentoo/build.sh     Gentoo image, the same way, from the newest openrc stage3
 docs/ci-setup.md    Token + self-hosted runner setup for maintainers
 .forgejo/workflows/ CI — see docs/ci-setup.md before expecting this to run
 ```
