@@ -98,13 +98,14 @@ common/            Shared build-time function libraries (sourced by each
                     per ADR-002
 debian/build.sh     Debian image, through common/vm-install.sh
 artix/build.sh      Artix image per init system, through common/vm-install.sh
-freebsd/            Implemented — runs its FreeBSD work in an mfsBSD guest
+freebsd/            Implemented — runs its FreeBSD work in a FreeBSD guest
   build.sh            Disk image: stages the payload, runs the guest
                       script, checks the pool property it sets on success
   live.sh             Live installer ISO for FreeBSD (UEFI + BIOS, CD + USB):
                       the guest builds it in RAM, writes it to a scratch
                       disk, live.sh cuts it back out by its volume size
-  mfsbsd.sh           Shared: mfsBSD release/URL, fetch, backend dispatch
+  mfsbsd.sh           Shared: build environment (FreeBSD VM image or mfsBSD),
+                      fetch, backend dispatch
   guest/build-in-guest.sh  Runs INSIDE the guest — gpart/zpool/pkg/boot chain
   guest/live-in-guest.sh   Runs INSIDE the guest — live tree, makefs + mkimg
   qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU monitor
@@ -153,18 +154,21 @@ sudo ./freebsd/build.sh [output-path] [image-size]  # defaults: freebsd/freebsd.
 `FREEBSD_BACKEND=qemu`) or VirtualBox, plus `xorriso`, on the runner, and `/dev/kvm` for
 reasonable build times — it boots a real FreeBSD environment under QEMU
 to run gpart/zpool/pkg, since those don't exist on Linux; see the
-header comment in `freebsd/build.sh` for why. It also downloads (and
-caches under `freebsd/.cache/`) an mfsBSD live ISO on first run —
-verify/pin `MFSBSD_ISO_URL` for the release you're targeting before
-relying on this in CI, since upstream filenames change across releases.
+header comment in `freebsd/build.sh` for why. With QEMU it downloads (and
+caches under `freebsd/.cache/`) FreeBSD's own VM image of the target
+release on first run, so the guest's `pkg` is the one the target gets;
+VirtualBox, or `FREEBSD_BUILD_ENV=mfsbsd`, uses an mfsBSD live ISO
+instead (`MFSBSD_ISO_URL`).
 
 The images ship root locked and a default administrator for the WebUI
 and the console: `admin` / `freedomnas`, set with
 `FNAS_ADMIN_USER` and `FNAS_ADMIN_PASSWORD` at build time. Change the
 password after the first sign-in.
 
-`freebsd/live.sh` needs the same backend, and gives the guest 6 GiB
-(`QEMU_MEM` / `VBOX_MEM`): the live tree and the ISO are built in memory.
+`freebsd/live.sh` needs the same backend and build environment, and gives
+the guest 6 GiB (`QEMU_MEM` / `VBOX_MEM`): the live tree and the ISO are
+built in memory. CI builds it on dev runs only, for now (`freebsd-live-iso`
+job).
 
 Image output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
 `zstd -d {edition}.img.zst` before flashing, or point Balena Etcher at

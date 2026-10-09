@@ -1,7 +1,8 @@
 #!/bin/sh
-# freebsd/guest/live-in-guest.sh — runs INSIDE the mfsBSD live environment
-# (see freebsd/live.sh and freebsd/mfsbsd.sh) and builds the FreeBSD live
-# installer ISO.
+# freebsd/guest/live-in-guest.sh — runs INSIDE the FreeBSD build
+# environment (see freebsd/live.sh and freebsd/mfsbsd.sh: FreeBSD's own VM
+# image of the target release with QEMU, mfsBSD otherwise) and builds the
+# FreeBSD live installer ISO.
 #
 # The seed is mounted at /fnas-seed before this runs: env.sh (release,
 # install root, packages, volume label) and fnas-payload.tar (core,
@@ -12,8 +13,10 @@
 # for live.sh to cut back out. So this needs memory for the tree plus the
 # ISO (live.sh gives the guest 6 GiB).
 #
-# makefs, mkimg and etdump run from the extracted release through chroot,
-# not from mfsBSD, which is older and doesn't necessarily ship them. The
+# makefs, mkimg, etdump and pkg run from the extracted release through
+# chroot, not from the build environment: mfsBSD is older and doesn't
+# necessarily ship them, and its pkg wrote a package database the live
+# system's pkg could not open. The
 # tree reaches the chroot as a read-only nullfs view of itself
 # (/tmp/fnas-src), and the output goes to a tmpfs mounted inside it
 # (/tmp/fnas-out): nullfs doesn't show mounts below it, so the ISO being
@@ -39,8 +42,8 @@ fail() {
     || fail "env.sh names no FREEBSD_RELEASE/INSTALL_ROOT/PACKAGES/VOLID"
 MIRROR="${FREEBSD_MIRROR:-https://download.freebsd.org/ftp/releases/amd64/amd64/$FREEBSD_RELEASE}"
 
-DISK=""
-for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
+DISK="${FNAS_TARGET_DISK:-}"
+[ -n "$DISK" ] || for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
     [ -e "$candidate" ] && DISK="$candidate" && break
 done
 [ -n "$DISK" ] || fail "no scratch disk found (checked vtbd0, ada0, da0)"
@@ -65,13 +68,13 @@ done
 log "=== [2/6] Packages: $PACKAGES ==="
 cp /etc/resolv.conf "$ROOT/etc/resolv.conf"
 mount -t devfs devfs "$ROOT/dev" || fail "mount devfs"
-pkg -c "$ROOT" bootstrap -y || fail "pkg bootstrap"
+chroot "$ROOT" env ASSUME_ALWAYS_YES=yes pkg bootstrap -f || fail "pkg bootstrap"
 # Retried for the same transient catalogue-fetch failures build-in-guest.sh
 # works around.
 pkg_install_ok=1
 for attempt in 1 2 3; do
     # shellcheck disable=SC2086
-    if pkg -c "$ROOT" install -y $PACKAGES; then
+    if chroot "$ROOT" pkg install -y $PACKAGES; then
         pkg_install_ok=0
         break
     fi
@@ -79,7 +82,7 @@ for attempt in 1 2 3; do
     sleep 10
 done
 [ "$pkg_install_ok" -eq 0 ] || fail "pkg install (3 attempts)"
-pkg -c "$ROOT" clean -ay >/dev/null 2>&1 || true
+chroot "$ROOT" pkg clean -ay >/dev/null 2>&1 || true
 rm -rf "$ROOT/var/cache/pkg/"* "$ROOT/var/db/pkg/repos"
 umount "$ROOT/dev" || true
 

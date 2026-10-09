@@ -49,7 +49,7 @@ fnas_fetch_mfsbsd() {
 # the target gets, so the package database it writes is one the installed
 # pkg can open. mfsBSD lags behind (14.2), and its older pkg wrote a
 # database pkg 2.7 could not migrate. FREEBSD_BUILD_ENV=mfsbsd keeps the
-# old path; the live ISO and VirtualBox still use mfsBSD.
+# old path; VirtualBox still uses mfsBSD.
 FREEBSD_BUILD_ENV="${FREEBSD_BUILD_ENV:-vm}"
 VM_IMAGE_URL="${VM_IMAGE_URL:-https://download.freebsd.org/releases/VM-IMAGES/${FREEBSD_RELEASE}/amd64/Latest/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2.xz}"
 VM_IMAGE_CACHE="$SCRIPT_DIR/.cache/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2"

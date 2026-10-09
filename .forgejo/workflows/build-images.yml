@@ -8,14 +8,15 @@ name: build-images
 # live-iso builds the live ISO once; the image jobs (debian, void, freebsd
 # and artix, one image per init system) install from that same ISO,
 # handed over in /var/tmp/freedomnas-ci/run-<id>/ on the runner, and
-# cleanup removes that directory at the end whatever happened. The ISO and
+# cleanup removes that directory at the end whatever happened. On dev,
+# freebsd-live-iso also builds the FreeBSD installer ISO. The ISOs and
 # every image go to a release of the GitHub showcase repo
 # FreedomNAS/freedomnas-image (ci/publish-release.sh) when the
 # GH_RELEASE_TOKEN secret is set: one release per run, images-<run number>.
 #
 # Runs on a self-hosted runner, on the host, as root through sudo: QEMU/KVM
-# (debian, void, artix: the live ISO installs them in a VM; freebsd boots
-# mfsBSD under QEMU) and the live ISO's chroot need what Codeberg's hosted
+# (debian, void, artix: the live ISO installs them in a VM; freebsd and the
+# FreeBSD live ISO boot FreeBSD's own VM image under QEMU) and the live ISO's chroot need what Codeberg's hosted
 # runners don't grant -- see ../../docs/ci-setup.md. No pool is ever created
 # or imported on the runner itself: they exist only inside the VMs.
 on:
@@ -247,8 +248,84 @@ jobs:
         if: always()
         run: sudo chown -R "$(id -u):$(id -g)" .
 
+  # The FreeBSD installer ISO (freebsd/live.sh): FreeBSD installs run from
+  # FreeBSD, so it is a second live ISO, for machines that cannot take a
+  # flashed image. Dev runs only for now.
+  freebsd-live-iso:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: [self-hosted, image-builder]
+    steps:
+      - name: Check out freedomnas-image-builder
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-image-builder
+
+      - name: Stop what an earlier job left running
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
+      - name: Check out freedomnas-profiles
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-profiles
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-profiles
+
+      - name: Check out freedomnas-installer
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-installer
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-installer
+
+      - name: Check out freedomnas-core
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-core
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-core
+
+      - name: Check out freedomnas-webui
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-webui
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-webui
+
+      - name: Check out freedomnas-docs
+        uses: actions/checkout@v4
+        with:
+          repository: FreedomNAS/freedomnas-docs
+          ref: ${{ env.CHECKOUT_REF }}
+          path: freedomnas-docs
+
+      - name: Build the FreeBSD live ISO
+        run: |
+          sudo env FNAS_CHANNEL="$FNAS_CHANNEL" FREEBSD_BACKEND=qemu \
+            freedomnas-image-builder/freebsd/live.sh "$PWD/freedomnas-live-freebsd.iso"
+
+      - name: Publish to the GitHub showcase
+        env:
+          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          RELEASE_TAG: images-${{ github.run_number }}
+          RELEASE_NAME: FreedomNAS images, build ${{ github.run_number }} (dev)
+        run: |
+          if [ -z "$GH_RELEASE_TOKEN" ]; then
+            echo "GH_RELEASE_TOKEN is not set: nothing published"
+            exit 0
+          fi
+          sh freedomnas-image-builder/ci/publish-release.sh freedomnas-live-freebsd.iso
+
+      - name: Stop what this job left running
+        if: always()
+        run: sudo sh freedomnas-image-builder/ci/stop-leftovers.sh
+
+      - name: Give the workspace back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
+
   cleanup:
-    needs: [live-iso, images]
+    needs: [live-iso, images, freebsd-live-iso]
     if: always()
     runs-on: [self-hosted, image-builder]
     steps:

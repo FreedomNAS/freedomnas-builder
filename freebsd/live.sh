@@ -16,7 +16,8 @@
 # what release/amd64/mkisoimages.sh writes.
 #
 # Like freebsd/build.sh, the FreeBSD-only tools (pkg, makefs, mkimg,
-# etdump) run inside an mfsBSD guest (freebsd/mfsbsd.sh), which runs
+# etdump) run inside a FreeBSD guest (freebsd/mfsbsd.sh: FreeBSD's own VM
+# image of the target release with QEMU, mfsBSD otherwise), which runs
 # freebsd/guest/live-in-guest.sh. The guest builds the ISO in memory and
 # writes it to the start of a scratch disk; this script cuts the ISO back
 # out of that disk at the size its primary volume descriptor records, and
@@ -64,6 +65,7 @@ rsync -a --exclude='.git' --exclude='__pycache__' --exclude='tests' \
     --exclude='debian' --exclude='PKGBUILD' --exclude='*.md' \
     "$REPOS_DIR/freedomnas-installer/" "$STAGE_DIR/usr/lib/freedomnas/installer/"
 chmod 755 "$STAGE_DIR/usr/lib/freedomnas/installer/setup.py"
+fnas_channel "$REPOS_DIR/freedomnas-installer" > "$STAGE_DIR/usr/lib/freedomnas/installer/CHANNEL"
 tar -cf "$SEED_DIR/fnas-payload.tar" --owner=0 --group=0 -C "$STAGE_DIR/usr/lib/freedomnas" .
 cp "$SCRIPT_DIR/guest/live-in-guest.sh" "$SEED_DIR/live-in-guest.sh"
 
@@ -85,10 +87,10 @@ echo "=== [2/4] Preparing the scratch disk ($DISK_SIZE) ==="
 rm -f "$DISK"
 truncate -s "$DISK_SIZE" "$DISK"
 
-echo "=== [3/4] Fetching mfsBSD live ISO (cached under freebsd/.cache/) ==="
-fnas_fetch_mfsbsd
+echo "=== [3/4] Fetching the build environment (cached under freebsd/.cache/) ==="
+fnas_fetch_build_env
 
-echo "=== [4/4] Booting mfsBSD (backend: $FREEBSD_BACKEND) and running live-in-guest.sh ==="
+echo "=== [4/4] Booting $(basename "$(fnas_build_env)") (backend: $FREEBSD_BACKEND) and running live-in-guest.sh ==="
 fnas_run_guest "$DISK" "$SEED_DIR" live-in-guest.sh
 
 echo "=== Extracting the ISO from the scratch disk ==="
