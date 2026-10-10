@@ -67,6 +67,15 @@ fnas_vm_install() {
     truncate -s "$img_size" "$img_path"
 
     echo "vm-install.sh: installing $edition${init:+/$init} into $img_path (serial log: $serial_log)" >&2
+    # The serial console is the installer's output: shown as it is written
+    # (FNAS_VM_SERIAL_STDOUT=0 keeps it in the file only), so a CI job's log
+    # carries the whole installation, not only its last lines.
+    : > "$serial_log"
+    tail_pid=""
+    if [ "${FNAS_VM_SERIAL_STDOUT:-1}" = 1 ]; then
+        tail -n +1 -F "$serial_log" 2>/dev/null &
+        tail_pid=$!
+    fi
     # discard=unmap: the installer trims the pool before exporting it, and
     # each trimmed block becomes a hole in $img_path, so what ZFS freed
     # during the install (package caches, replaced files) compresses to
@@ -80,6 +89,10 @@ fnas_vm_install() {
         -nic user,model=virtio-net-pci \
         -display none -serial "file:$serial_log" -no-reboot \
         || echo "vm-install.sh: QEMU exited with $?" >&2
+    if [ -n "$tail_pid" ]; then
+        sleep 1
+        kill "$tail_pid" 2>/dev/null || true
+    fi
 
     rm -rf "$work"
     if grep -q '^vm-install: RESULT ok' "$serial_log"; then
