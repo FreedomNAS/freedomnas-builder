@@ -173,8 +173,8 @@ built in memory. CI builds it on dev runs only, for now (`freebsd-live-iso`
 job).
 
 Image output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
-`zstd -d {edition}.img.zst` before flashing, or point Balena Etcher at
-the `.zst` file directly (it decompresses on the fly).
+`zstd -d {edition}.img.zst` before flashing (balenaEtcher needs that), or
+point Raspberry Pi Imager or Rufus at the `.zst` file directly.
 
 ## How CI triggers a build
 

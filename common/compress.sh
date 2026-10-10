@@ -2,8 +2,8 @@
 # common/compress.sh — final build step: {edition}.img -> {edition}.img.zst
 #
 # zstd over xz: much faster to produce in CI, still trivially readable by
-# the flashing tools we point users at (Balena Etcher decompresses .zst
-# natively; `zstd -d` pipes into Rufus/dd for everyone else).
+# the flashing tools we point users at (Raspberry Pi Imager and Rufus read
+# .zst; `zstd -d` first for balenaEtcher, which does not; or zstd | dd).
 set -eu
 
 fnas_compress() {
