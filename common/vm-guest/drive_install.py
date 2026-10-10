@@ -10,7 +10,7 @@ installer that grew a new question needs an answer decided here.
 import os
 import sys
 
-sys.path.insert(0, "/usr/lib/freedomnas/installer/lib")
+sys.path.insert(0, os.path.join(os.environ.get("FNAS_INSTALL_ROOT", "/usr/lib/freedomnas"), "installer", "lib"))
 
 from context import ExecutionContext
 from installer_modules import Configuration, DialogManager
@@ -22,7 +22,7 @@ INIT = os.environ.get("FNAS_INIT", "")
 HOSTNAME = os.environ.get("FNAS_HOSTNAME", "freedomnas")
 ADMIN_USER = os.environ["FNAS_ADMIN_USER"]
 ADMIN_PASSWORD = os.environ["FNAS_ADMIN_PASSWORD"]
-TARGET_ROOT = "/mnt/fnas"
+TARGET_ROOT = os.environ.get("FNAS_TARGET_ROOT", "/mnt/fnas")
 
 
 class Unanswered(RuntimeError):
@@ -69,6 +69,8 @@ class ScriptedDialog(DialogManager):
         }
         if os.environ.get("FNAS_ROOTFS_URL"):
             answers["Rootfs Tarball"] = os.environ["FNAS_ROOTFS_URL"]
+        elif init_text:
+            answers["Rootfs Tarball"] = init_text
         if title not in answers:
             raise Unanswered(f"inputbox {title!r}")
         print(f"[input] {title}: {answers[title]}", flush=True)

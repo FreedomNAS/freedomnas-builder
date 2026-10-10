@@ -19,7 +19,7 @@ same on-disk layout.
 |---------|--------|------|-------|
 | Debian (trixie) | **Implemented** | systemd | Installed by freedomnas-installer inside the live ISO under QEMU (`common/vm-install.sh`); kernel and ZFS from linux-freedomnas |
 | Artix Linux | **Implemented** | OpenRC, dinit, runit | Same as Debian, one image per init system |
-| FreeBSD (14+) | **Phase 2 — implemented** | bsd_rc | Native boot chain (gptzfsboot/loader.efi, no UKI/Clover); build runs *inside* a QEMU-booted FreeBSD guest — see `freebsd/build.sh` header for why |
+| FreeBSD (14+) | **Implemented** | bsd_rc | Installed by freedomnas-installer inside the FreeBSD live ISO (`freebsd/live.sh`) under QEMU, like the Linux images; native boot chain (gptzfsboot/loader.efi, no UKI/Clover); FreedomNAS from the freedomnas-freebsd pkg repository |
 | Void Linux | **Implemented** | runit | Same as Debian; kernel from Void, OpenZFS modules prebuilt by freedomnas-void |
 | Gentoo | **Implemented** | OpenRC | Same as Debian, from the newest openrc stage3 (`gentoo/build.sh` reads Gentoo's autobuilds pointer; `FNAS_ROOTFS_URL` overrides it); OpenZFS is compiled for gentoo-kernel-bin during the build, so it takes longer than the others |
 
@@ -99,15 +99,15 @@ common/            Shared build-time function libraries (sourced by each
                     per ADR-002
 debian/build.sh     Debian image, through common/vm-install.sh
 artix/build.sh      Artix image per init system, through common/vm-install.sh
-freebsd/            Implemented — runs its FreeBSD work in a FreeBSD guest
-  build.sh            Disk image: stages the payload, runs the guest
-                      script, checks the pool property it sets on success
+freebsd/            Implemented — FreeBSD's tools run in a FreeBSD guest
+  build.sh            Disk image, installed by freedomnas-installer in the
+                      FreeBSD live ISO through common/vm-install.sh
   live.sh             Live installer ISO for FreeBSD (UEFI + BIOS, CD + USB):
                       the guest builds it in RAM, writes it to a scratch
                       disk, live.sh cuts it back out by its volume size
   mfsbsd.sh           Shared: build environment (FreeBSD VM image or mfsBSD),
                       fetch, backend dispatch
-  guest/build-in-guest.sh  Runs INSIDE the guest — gpart/zpool/pkg/boot chain
+  guest/build-in-guest.sh  The image's former builder (gpart/zpool/pkg in the guest), unused
   guest/live-in-guest.sh   Runs INSIDE the guest — live tree, makefs + mkimg
   qemu-driver.sh      QEMU backend: seed ISO, keystrokes via the QEMU monitor
   vbox-driver.sh      VirtualBox backend, same approach through VBoxManage
@@ -148,19 +148,31 @@ the self-hosted runner:
 ```sh
 ./debian/build.sh [output-path] [image-size]        # defaults: debian/debian.img, 12G
 ./artix/build.sh <openrc|dinit|runit> [output-path] [image-size]   # defaults: artix/artix-<init>.img, 10G
-sudo ./freebsd/build.sh [output-path] [image-size]  # defaults: freebsd/freebsd.img, 8G
+./freebsd/build.sh [output-path] [image-size]       # defaults: freebsd/freebsd.img, 8G
 ./freebsd/live.sh [output-path]                   # default: freebsd/freedomnas-live-freebsd.iso
 ```
 
-`freebsd/build.sh` additionally needs `qemu-system-x86_64` (with
-`FREEBSD_BACKEND=qemu`) or VirtualBox, plus `xorriso`, on the runner, and `/dev/kvm` for
-reasonable build times — it boots a real FreeBSD environment under QEMU
-to run gpart/zpool/pkg, since those don't exist on Linux; see the
-header comment in `freebsd/build.sh` for why. With QEMU it downloads (and
-caches under `freebsd/.cache/`) FreeBSD's own VM image of the target
-release on first run, so the guest's `pkg` is the one the target gets;
-VirtualBox, or `FREEBSD_BUILD_ENV=mfsbsd`, uses an mfsBSD live ISO
-instead (`MFSBSD_ISO_URL`).
+`freebsd/build.sh` installs from the FreeBSD live ISO
+(`FNAS_FREEBSD_LIVE_ISO`, default `freebsd/freedomnas-live-freebsd.iso`)
+exactly as the Linux images install from theirs: the ISO's `.profile` runs
+the `FNASSEED` disc's `run.sh` instead of the menus, `drive_install.py`
+answers the installer, and the outcome is read from the serial log. The
+FreeBSD ISO's root is read-only, so it installs with the FreedomNAS it was
+built with; the installer then takes FreedomNAS from the freedomnas-freebsd
+pkg repository of its channel.
+
+`freebsd/live.sh` boots a real FreeBSD environment under QEMU
+(`FREEBSD_BACKEND=qemu`, or VirtualBox) with `xorriso` and `/dev/kvm`, since
+FreeBSD's makefs/mkimg/pkg don't exist on Linux. With QEMU it downloads
+FreeBSD's own VM image of the target release once and keeps it in
+`FNAS_CACHE_DIR` (default `freebsd/.cache/`; CI uses
+`/var/cache/freedomnas-ci/freebsd` on the runner, shared with
+freedomnas-freebsd's package builds); `FREEBSD_BUILD_ENV=mfsbsd` uses an
+mfsBSD live ISO instead (`MFSBSD_ISO_URL`).
+
+Booted as a USB stick in QEMU, FreeBSD needs `-device usb-ehci`: with
+`qemu-xhci` its root mount hangs once the stick appears, with the images of
+the former builder too.
 
 The images ship root locked and a default administrator for the WebUI
 and the console: `admin` / `freedomnas`, set with
@@ -169,8 +181,8 @@ password after the first sign-in.
 
 `freebsd/live.sh` needs the same backend and build environment, and gives
 the guest 6 GiB (`QEMU_MEM` / `VBOX_MEM`): the live tree and the ISO are
-built in memory. CI builds it on dev runs only, for now (`freebsd-live-iso`
-job).
+built in memory. CI builds it on every run (`freebsd-live-iso`), and
+`freebsd-image` installs the image from it.
 
 Image output is `zstd`-compressed (`{edition}.img.zst`) — decompress with
 `zstd -d {edition}.img.zst` before flashing (balenaEtcher needs that), or

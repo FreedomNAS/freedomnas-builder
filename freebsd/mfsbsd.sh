@@ -28,7 +28,7 @@ FREEBSD_BACKEND="${FREEBSD_BACKEND:-virtualbox}"
 FREEBSD_RELEASE="${FREEBSD_RELEASE:-15.1-RELEASE}"
 MFSBSD_RELEASE="${MFSBSD_RELEASE:-14.2-RELEASE}"
 MFSBSD_ISO_URL="${MFSBSD_ISO_URL:-https://mfsbsd.vx.sk/files/iso/14/amd64/mfsbsd-${MFSBSD_RELEASE}-amd64.iso}"
-MFSBSD_ISO_CACHE="$SCRIPT_DIR/.cache/mfsbsd-${MFSBSD_RELEASE}-amd64.iso"
+MFSBSD_ISO_CACHE="${FNAS_CACHE_DIR:-$SCRIPT_DIR/.cache}/mfsbsd-${MFSBSD_RELEASE}-amd64.iso"
 
 fnas_fetch_mfsbsd() {
     mkdir -p "$(dirname "$MFSBSD_ISO_CACHE")"
@@ -52,7 +52,7 @@ fnas_fetch_mfsbsd() {
 # old path; VirtualBox still uses mfsBSD.
 FREEBSD_BUILD_ENV="${FREEBSD_BUILD_ENV:-vm}"
 VM_IMAGE_URL="${VM_IMAGE_URL:-https://download.freebsd.org/releases/VM-IMAGES/${FREEBSD_RELEASE}/amd64/Latest/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2.xz}"
-VM_IMAGE_CACHE="$SCRIPT_DIR/.cache/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2"
+VM_IMAGE_CACHE="${FNAS_CACHE_DIR:-$SCRIPT_DIR/.cache}/FreeBSD-${FREEBSD_RELEASE}-amd64-ufs.qcow2"
 
 fnas_fetch_build_env() {
     if [ "$FREEBSD_BACKEND" != qemu ] || [ "$FREEBSD_BUILD_ENV" = mfsbsd ]; then
@@ -61,12 +61,12 @@ fnas_fetch_build_env() {
     fi
     mkdir -p "$(dirname "$VM_IMAGE_CACHE")"
     [ -f "$VM_IMAGE_CACHE" ] && return 0
-    curl -fL "$VM_IMAGE_URL" -o "$VM_IMAGE_CACHE.xz.part" || {
+    curl -fL "$VM_IMAGE_URL" -o "$VM_IMAGE_CACHE.xz.part.$$" || {
         echo "mfsbsd.sh: could not fetch $VM_IMAGE_URL" >&2
         return 1
     }
-    xz -dc "$VM_IMAGE_CACHE.xz.part" > "$VM_IMAGE_CACHE.part" && rm -f "$VM_IMAGE_CACHE.xz.part" \
-        && mv -f "$VM_IMAGE_CACHE.part" "$VM_IMAGE_CACHE"
+    xz -dc "$VM_IMAGE_CACHE.xz.part.$$" > "$VM_IMAGE_CACHE.part.$$" && rm -f "$VM_IMAGE_CACHE.xz.part.$$" \
+        && mv -f "$VM_IMAGE_CACHE.part.$$" "$VM_IMAGE_CACHE"
 }
 
 fnas_build_env() {

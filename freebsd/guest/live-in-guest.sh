@@ -131,7 +131,9 @@ kernels_autodetect="NO"
 EOF
 
 # Root logs in by itself on the first virtual console and on the serial
-# console; freedomnas-install starts on the first virtual console.
+# console; freedomnas-install starts on the first virtual console, or, when
+# an image build (common/vm-install.sh) attaches a disc labelled FNASSEED,
+# that disc's run.sh, with its output copied to the serial line.
 cat >> "$ROOT/etc/gettytab" <<'EOF'
 
 fnas.autologin|FreedomNAS live console, root logged in:\
@@ -148,6 +150,12 @@ cat >> "$ROOT/root/.profile" <<'EOF'
 
 if [ "$(tty)" = /dev/ttyv0 ] && [ ! -e /tmp/freedomnas-install.started ]; then
     : > /tmp/freedomnas-install.started
+    if [ -e /dev/iso9660/FNASSEED ]; then
+        mkdir -p /tmp/fnas-seed
+        mount -t cd9660 /dev/iso9660/FNASSEED /tmp/fnas-seed
+        sh /tmp/fnas-seed/run.sh 2>&1 | tee /dev/ttyu0
+        poweroff
+    fi
     freedomnas-install
     echo
     echo "freedomnas-install exited. Run it again with: freedomnas-install"
