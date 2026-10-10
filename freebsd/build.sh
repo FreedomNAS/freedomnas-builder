@@ -62,7 +62,7 @@ fnas_path() {
 # The packages too: core, samba-cifs and nfs, as freedomnas-profiles lists
 # them for FreeBSD -- the features the Linux images install as well.
 fnas_packages() {
-    python3 -c 'import json, sys; print(" ".join(p for c in sys.argv[2:] for p in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"]["packages"]))' \
+    python3 -c 'import json, sys; print(" ".join(p for c in sys.argv[2:] for p in json.load(open(f"{sys.argv[1]}/{c}.json"))["freebsd"]["packages"] if not p.startswith("freedomnas-")))' \
         "$REPOS_DIR/freedomnas-profiles/packages" core samba-cifs nfs
 }
 # And their services, enabled as freedomnas-installer enables them: without

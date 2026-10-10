@@ -74,7 +74,7 @@ cp "$SCRIPT_DIR/guest/live-in-guest.sh" "$SEED_DIR/live-in-guest.sh"
 # cdialog is the live environment's own need: the installer's dialogs.
 INSTALL_ROOT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["paths"]["install_root"])' \
     "$REPOS_DIR/freedomnas-profiles/os/os-freebsd.json")"
-PACKAGES="$(python3 -c 'import json, sys; print(" ".join(json.load(open(sys.argv[1]))["freebsd"]["packages"]))' \
+PACKAGES="$(python3 -c 'import json, sys; print(" ".join(p for p in json.load(open(sys.argv[1]))["freebsd"]["packages"] if not p.startswith("freedomnas-")))' \
     "$REPOS_DIR/freedomnas-profiles/packages/core.json") cdialog"
 cat > "$SEED_DIR/env.sh" <<EOF
 FREEBSD_RELEASE="$FREEBSD_RELEASE"
