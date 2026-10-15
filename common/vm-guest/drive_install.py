@@ -23,6 +23,7 @@ HOSTNAME = os.environ.get("FNAS_HOSTNAME", "freedomnas")
 ADMIN_USER = os.environ["FNAS_ADMIN_USER"]
 ADMIN_PASSWORD = os.environ["FNAS_ADMIN_PASSWORD"]
 TARGET_ROOT = os.environ.get("FNAS_TARGET_ROOT", "/mnt/fnas")
+POOL_NAME = os.environ.get("FNAS_POOL_NAME") or f"{EDITION}{INIT[:1]}pool"
 
 
 class Unanswered(RuntimeError):
@@ -63,7 +64,7 @@ class ScriptedDialog(DialogManager):
     @classmethod
     def inputbox(cls, title, text, init_text="", *args, **kwargs):
         answers = {
-            "Root Pool Name": "rpool",
+            "Root Pool Name": POOL_NAME,
             "System Hostname": HOSTNAME,
             "Administrator Account": ADMIN_USER,
         }
