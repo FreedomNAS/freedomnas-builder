@@ -66,10 +66,10 @@ if [ -z "$current" ]; then
     exit 0
 fi
 rid=$(printf '%s' "$current" | jq -r '.id')
-created=$(printf '%s' "$current" | jq -r '.created_at')
+created=$(printf '%s' "$current" | jq -r '.published_at // .created_at')
 if [ "$FNAS_CHANNEL" = dev ]; then same='endswith("(dev)")'; else same='endswith("(dev)") | not'; fi
 previous=$(jq -c --arg c "$created" --arg t "$RELEASE_TAG" \
-    "[.[] | select(.tag_name != \$t and .created_at < \$c and (.name | $same))] | sort_by(.created_at) | last // empty" \
+    "[.[] | select(.tag_name != \$t and (.published_at // .created_at) < \$c and (.name | $same))] | sort_by(.published_at // .created_at) | last // empty" \
     "$work/releases.json")
 previous_tag=$(printf '%s' "$previous" | jq -r '.tag_name // empty' 2>/dev/null || true)
 old_refs="${PREVIOUS_REFS:-$(printf '%s' "$previous" | jq -r '.body // ""' 2>/dev/null \
