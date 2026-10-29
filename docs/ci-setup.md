@@ -100,6 +100,18 @@ then install from), every image and, on dev runs, the FreeBSD live ISO
 1900 MiB parts, joined with `cat` (the release text says how). Without the
 secret the step publishes nothing and the build still succeeds.
 
+At the end the `changelog` job (`ci/changelog.sh`) writes what changed into
+the release text: it finds the newest earlier release of the same channel
+(dev, or a `vX.Y.Z`), reads the hidden `<!-- freedomnas-refs: ... -->`
+line that names the commit of each repository that release was built from,
+and lists every repository's commits since then (core, profiles, WebUI,
+installer, the containers and proxy modules, the kernel, the FreeBSD
+packages, this builder, the docs), with the kernel's and OpenZFS's version
+change on top; then it writes the new line for the next run. The commits
+are the branch or tag tips when the job runs. A release before the first
+one with that line gets only the line. The same token is used; nothing
+more to set up.
+
 The token, from the GitHub account of an organization member:
 
 1. **Settings → Developer settings → Personal access tokens → Fine-grained
