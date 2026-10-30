@@ -104,12 +104,14 @@ jobs:
           ref: ${{ env.SRC_REF }}
           path: freedomnas-docs
 
-      # The live ISO's Portage tree carries it (live/build.sh, step 3).
+      # The live ISO's Portage tree carries it (live/build.sh, step 3). The
+      # overlay has one branch, main, with the ebuilds of every release and
+      # the 9999 ones, so it is the same for a release and for dev.
       - name: Check out freedomnas-overlay
         uses: actions/checkout@v4
         with:
           repository: FreedomNAS/freedomnas-overlay
-          ref: ${{ env.SRC_REF }}
+          ref: main
           path: freedomnas-overlay
 
       # The plain ISO: build-ssh.sh's carries whoever built it's key and is
