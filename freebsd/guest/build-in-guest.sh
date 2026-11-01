@@ -154,7 +154,6 @@ EOF
 # zfs_load the kernel can't mount the root dataset ("unknown file system").
 cat >> "$MNT/boot/loader.conf" <<EOF
 zfs_load="YES"
-vfs.root.mountfrom="zfs:$POOL/ROOT/$BENAME"
 kern.geom.label.disk_ident.enable="0"
 kern.geom.label.gptid.enable="0"
 EOF

@@ -10,15 +10,18 @@
 # See vbox-driver.sh and qemu-driver.sh for what each needs installed.
 #
 # FREEBSD_RELEASE and MFSBSD_RELEASE are deliberately independent:
-# FREEBSD_RELEASE is the base.txz/kernel.txz version that gets installed
+# FREEBSD_RELEASE is the base system version that gets installed
 # and should track whatever FreeBSD currently ships as a release;
 # MFSBSD_RELEASE is just the environment doing the work and only needs to
-# be able to partition, create pools, and fetch+extract the (possibly
+# be able to partition, create pools, and install the (possibly
 # much newer) target release -- confirmed empirically that mfsbsd.vx.sk
 # lags behind FreeBSD's own releases (14.2 is still the newest mfsBSD
 # ISO, with FreeBSD at 15.1). Boot code, loader and image tools come
-# from the extracted release, not from mfsBSD, so an older mfsBSD builds
-# a newer release.
+# from the installed release, not from mfsBSD, so an older mfsBSD builds
+# a newer release -- except that the base system now comes from the
+# FreeBSD-base pkg repository, signed with a key per major version
+# (/usr/share/keys/pkgbase-N) that only an environment of the same major
+# has: the live ISO needs FREEBSD_BUILD_ENV=vm.
 #
 # The mfsBSD ISO URL follows the project's long-stable pattern, but pin
 # and verify it for the release you target before relying on this in

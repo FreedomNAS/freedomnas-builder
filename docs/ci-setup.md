@@ -79,11 +79,12 @@ self-hosted runner also needs:
   installed.
 - `/dev/kvm` present and read/write-accessible to the runner user — the
   build still works without it (falls back to software emulation
-  automatically) but a full `base.txz` fetch + `pkg install` under pure
+  automatically) but a full base system and package install under pure
   TCG emulation is considerably slower; budget CI time accordingly if
   KVM isn't available (e.g. a nested-virtualization-disabled cloud VM).
 - Outbound network access from the runner (the QEMU guest fetches
-  `base.txz`/`kernel.txz` and packages from FreeBSD's mirrors over the
+  the base system (the FreeBSD-base pkg repository) and packages from
+  FreeBSD's mirrors over the
   guest's usermode-NAT network, which rides on the runner's own
   connection).
 

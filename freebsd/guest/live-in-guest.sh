@@ -13,7 +13,7 @@
 # for live.sh to cut back out. So this needs memory for the tree plus the
 # ISO (live.sh gives the guest 6 GiB).
 #
-# makefs, mkimg, etdump and pkg run from the extracted release through
+# makefs, mkimg, etdump and pkg run from the installed release through
 # chroot, not from the build environment: mfsBSD is older and doesn't
 # necessarily ship them, and its pkg wrote a package database the live
 # system's pkg could not open. The
@@ -40,7 +40,7 @@ fail() {
 
 [ -n "${FREEBSD_RELEASE:-}" ] && [ -n "${INSTALL_ROOT:-}" ] && [ -n "${PACKAGES:-}" ] && [ -n "${VOLID:-}" ] \
     || fail "env.sh names no FREEBSD_RELEASE/INSTALL_ROOT/PACKAGES/VOLID"
-MIRROR="${FREEBSD_MIRROR:-https://download.freebsd.org/ftp/releases/amd64/amd64/$FREEBSD_RELEASE}"
+PKG_MIRROR="${FREEBSD_PKG_MIRROR:-https://pkg.FreeBSD.org}"
 
 DISK="${FNAS_TARGET_DISK:-}"
 [ -n "$DISK" ] || for candidate in /dev/vtbd0 /dev/ada0 /dev/da0; do
@@ -56,14 +56,46 @@ ifconfig "$IFACE" | grep -q 'inet ' || dhclient "$IFACE" || fail "dhclient $IFAC
 mkdir -p "$WORK"
 mount -t tmpfs tmpfs "$WORK" || fail "mount tmpfs on $WORK"
 ROOT="$WORK/root"
-mkdir -p "$ROOT" "$WORK/dist"
+mkdir -p "$ROOT"
 
-log "=== [1/6] Fetching + extracting base.txz/kernel.txz ($FREEBSD_RELEASE) ==="
-for set in base kernel; do
-    fetch -o "$WORK/dist/$set.txz" "$MIRROR/$set.txz" || fail "fetch $set.txz from $MIRROR"
-    tar -xf "$WORK/dist/$set.txz" -C "$ROOT" || fail "extract $set.txz"
-    rm -f "$WORK/dist/$set.txz"
+log "=== [1/6] Base system from the FreeBSD-base repository ($FREEBSD_RELEASE) ==="
+# pkgbase, as bsdinstall and freedomnas-installer's bootstrap.pkgbase install
+# it: the build environment's pkg with --rootdir, a repository for the
+# release's own base_release_<minor>, and its signing key, which only a
+# build environment of the same major version has (mfsBSD 14.2 does not).
+VERSION="${FREEBSD_RELEASE%%-*}"
+MAJOR="${VERSION%%.*}"
+[ -e "/usr/share/keys/pkgbase-$MAJOR" ] || fail "no pkgbase-$MAJOR signing key in this build environment"
+mkdir -p "$WORK/repos" "$ROOT/usr/share/keys"
+cat > "$WORK/repos/FreeBSD-base.conf" <<EOF
+FreeBSD-base: {
+  url: "pkg+$PKG_MIRROR/FreeBSD:$MAJOR:amd64/base_release_${VERSION#*.}",
+  mirror_type: "srv",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkgbase-$MAJOR",
+  enabled: yes
+}
+EOF
+cp -R /usr/share/keys/. "$ROOT/usr/share/keys/"
+pkg -N >/dev/null 2>&1 || env ASSUME_ALWAYS_YES=yes pkg bootstrap -f || fail "pkg bootstrap in the build environment"
+BASE_PKG="pkg --rootdir $ROOT --repo-conf-dir $WORK/repos -o IGNORE_OSVERSION=yes"
+SETS="FreeBSD-set-minimal FreeBSD-set-base FreeBSD-set-kernels"
+fetched=1
+for attempt in 1 2 3; do
+    # shellcheck disable=SC2086
+    if $BASE_PKG update && $BASE_PKG install -U -F -y -r FreeBSD-base $SETS; then
+        fetched=0
+        break
+    fi
+    log "fetching the base system, attempt $attempt failed, retrying in 10s..."
+    sleep 10
 done
+[ "$fetched" -eq 0 ] || fail "fetch the base system (3 attempts)"
+# shellcheck disable=SC2086
+$BASE_PKG install -U -y -r FreeBSD-base $SETS || fail "install the base system"
+$BASE_PKG clean -ay >/dev/null 2>&1 || true
+mkdir -p "$ROOT/usr/local/etc/pkg/repos"
+echo 'FreeBSD-base: { enabled: yes }' > "$ROOT/usr/local/etc/pkg/repos/FreeBSD-base.conf"
 
 log "=== [2/6] Packages: $PACKAGES ==="
 cp /etc/resolv.conf "$ROOT/etc/resolv.conf"
