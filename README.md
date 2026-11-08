@@ -18,6 +18,7 @@ same on-disk layout.
 | Edition | Status | Init | Notes |
 |---------|--------|------|-------|
 | Debian (trixie) | **Implemented** | systemd | Installed by freedomnas-installer inside the live ISO under QEMU (`common/vm-install.sh`); kernel and ZFS from linux-freedomnas |
+| Arch Linux | **Implemented** | systemd | Same as Debian, bootstrapped with `pacstrap` |
 | Artix Linux | **Implemented** | OpenRC, dinit, runit | Same as Debian, one image per init system |
 | FreeBSD (14+) | **Implemented** | bsd_rc | Installed by freedomnas-installer inside the FreeBSD live ISO (`freebsd/live.sh`) under QEMU, like the Linux images; native boot chain (gptzfsboot/loader.efi, no UKI/Clover); FreedomNAS from the freedomnas-freebsd pkg repository |
 | Void Linux | **Implemented** | runit | Same as Debian; kernel from Void, OpenZFS modules prebuilt by freedomnas-void |
@@ -98,6 +99,7 @@ common/            Shared build-time function libraries (sourced by each
                     reconciles or hands off to the WebUI's first-run wizard
                     per ADR-002
 debian/build.sh     Debian image, through common/vm-install.sh
+arch/build.sh       Arch image, through common/vm-install.sh
 artix/build.sh      Artix image per init system, through common/vm-install.sh
 freebsd/            Implemented — FreeBSD's tools run in a FreeBSD guest
   build.sh            Disk image, installed by freedomnas-installer in the
@@ -147,6 +149,7 @@ the self-hosted runner:
 
 ```sh
 ./debian/build.sh [output-path] [image-size]        # defaults: debian/debian.img, 12G
+./arch/build.sh [output-path] [image-size]          # defaults: arch/arch.img, 10G
 ./artix/build.sh <openrc|dinit|runit> [output-path] [image-size]   # defaults: artix/artix-<init>.img, 10G
 ./freebsd/build.sh [output-path] [image-size]       # defaults: freebsd/freebsd.img, 8G
 ./freebsd/live.sh [output-path]                   # default: freebsd/freedomnas-live-freebsd.iso

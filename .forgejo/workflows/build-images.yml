@@ -5,8 +5,8 @@ name: build-images
 # Start it on the branch to build: on dev every repo is checked out at
 # dev; on main (or master) at the newest release tag, vX.Y.Z.
 #
-# live-iso builds the live ISO once; the Linux image jobs (debian, void,
-# gentoo and artix, one image per init system) install from that same ISO,
+# live-iso builds the live ISO once; the Linux image jobs (debian, arch,
+# void, gentoo and artix, one image per init system) install from that same ISO,
 # handed over in /var/tmp/freedomnas-ci/run-<id>/ on the runner, and
 # cleanup removes that directory at the end whatever happened.
 # freebsd-live-iso builds the FreeBSD installer ISO the same way, and
@@ -154,6 +154,7 @@ jobs:
       matrix:
         include:
           - { edition: debian, image: debian }
+          - { edition: arch, image: arch }
           - { edition: void, image: void }
           - { edition: gentoo, image: gentoo }
           - { edition: artix, init: openrc, image: artix-openrc }
