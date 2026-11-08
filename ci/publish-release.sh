@@ -12,6 +12,7 @@
 #   RELEASE_TAG       the release the files go to; created when missing
 #   RELEASE_NAME      its title (default: the tag)
 #   UPLOAD_TRIES      tries per file before giving up (default 3)
+#   PROGRESS_EVERY    seconds between progress lines while uploading (default 30)
 #   DRY_RUN=1         say what would happen, send nothing
 #
 # Every job of one workflow run calls this with the same tag: the first
@@ -31,6 +32,7 @@ UPLOADS="https://uploads.github.com/repos/$GH_REPO"
 MAX_ASSET="${MAX_ASSET:-2147483647}"   # GitHub: each asset under 2 GiB
 PART_SIZE="${PART_SIZE:-1900M}"
 UPLOAD_TRIES="${UPLOAD_TRIES:-3}"
+PROGRESS_EVERY="${PROGRESS_EVERY:-30}"
 
 [ "$#" -gt 0 ] || { echo "publish-release.sh: no files given" >&2; exit 1; }
 for tool in curl jq sha256sum split stat; do
@@ -79,6 +81,35 @@ drop_asset() {
     done
 }
 
+bytes_read() {
+    # bytes_read PID FILE — how far the curl child of PID has read FILE
+    for p in "$1" $(pgrep -P "$1" curl 2>/dev/null); do
+        for fd in /proc/"$p"/fd/*; do
+            [ "$(readlink "$fd" 2>/dev/null)" = "$2" ] || continue
+            awk '/^pos:/ { print $2 }' "/proc/$p/fdinfo/${fd##*/}" 2>/dev/null && return
+        done
+    done
+    return 1
+}
+
+progress() {
+    # progress PID FILE — prints how the upload of FILE is going until PID ends
+    pid=$1 path=$(realpath "$2") name=$(basename "$2") size=$(stat -c %s "$2")
+    last=0
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep "$PROGRESS_EVERY" >/dev/null 2>&1
+        pos=$(bytes_read "$pid" "$path") || continue
+        awk -v n="$name" -v pos="$pos" -v last="$last" -v size="$size" -v t="$PROGRESS_EVERY" 'BEGIN {
+            rate = (pos - last) / t
+            eta = rate > 0 ? (size - pos) / rate : -1
+            left = eta < 0 ? "stalled" : eta < 90 ? sprintf("%d s left", eta) : sprintf("%d min left", eta / 60 + 0.5)
+            printf "publish-release.sh: %s %d%% (%d of %d MB) at %.1f MB/s, %s\n",
+                n, pos * 100 / size, pos / 1048576, size / 1048576, rate / 1048576, left
+        }'
+        last=$pos
+    done
+}
+
 upload() {
     # upload RELEASE_ID FILE — replaces an asset of the same name
     rid=$1 file=$2
@@ -86,9 +117,18 @@ upload() {
     try=1
     while :; do
         drop_asset "$rid" "$name" || true
-        if out=$(gh_api POST "$UPLOADS/releases/$rid/assets?name=$name" \
-                -H "Content-Type: application/octet-stream" \
-                -T "$file"); then
+        gh_api POST "$UPLOADS/releases/$rid/assets?name=$name" \
+            -H "Content-Type: application/octet-stream" \
+            -T "$file" > "$work/response" &
+        up=$!
+        progress "$up" "$file" &
+        mon=$!
+        rc=0
+        wait "$up" || rc=$?
+        kill "$mon" 2>/dev/null || true
+        wait "$mon" 2>/dev/null || true
+        out=$(cat "$work/response")
+        if [ "$rc" -eq 0 ]; then
             echo "$out" | jq -r '"uploaded " + .name + " (" + (.size | tostring) + " bytes)"'
             return
         fi
