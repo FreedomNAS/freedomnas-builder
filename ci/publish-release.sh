@@ -11,6 +11,7 @@
 #   GH_REPO           owner/name (default FreedomNAS/freedomnas-image)
 #   RELEASE_TAG       the release the files go to; created when missing
 #   RELEASE_NAME      its title (default: the tag)
+#   UPLOAD_TRIES      tries per file before giving up (default 3)
 #   DRY_RUN=1         say what would happen, send nothing
 #
 # Every job of one workflow run calls this with the same tag: the first
@@ -29,6 +30,7 @@ API="https://api.github.com/repos/$GH_REPO"
 UPLOADS="https://uploads.github.com/repos/$GH_REPO"
 MAX_ASSET="${MAX_ASSET:-2147483647}"   # GitHub: each asset under 2 GiB
 PART_SIZE="${PART_SIZE:-1900M}"
+UPLOAD_TRIES="${UPLOAD_TRIES:-3}"
 
 [ "$#" -gt 0 ] || { echo "publish-release.sh: no files given" >&2; exit 1; }
 for tool in curl jq sha256sum split stat; do
@@ -68,18 +70,33 @@ ensure_release() {
     release_id || true
 }
 
-upload() {
-    # upload RELEASE_ID FILE — replaces an asset of the same name
-    rid=$1 file=$2
-    name=$(basename "$file")
+drop_asset() {
+    rid=$1 name=$2
     old=$(gh_api GET "$API/releases/$rid/assets?per_page=100" \
           | jq -r --arg n "$name" '.[] | select(.name == $n) | .id')
     for asset in $old; do
         gh_api DELETE "$API/releases/assets/$asset" >/dev/null
     done
-    gh_api POST "$UPLOADS/releases/$rid/assets?name=$name" \
-        -H "Content-Type: application/octet-stream" \
-        --data-binary "@$file" | jq -r '"uploaded " + .name + " (" + (.size | tostring) + " bytes)"'
+}
+
+upload() {
+    # upload RELEASE_ID FILE — replaces an asset of the same name
+    rid=$1 file=$2
+    name=$(basename "$file")
+    try=1
+    while :; do
+        drop_asset "$rid" "$name" || true
+        if out=$(gh_api POST "$UPLOADS/releases/$rid/assets?name=$name" \
+                -H "Content-Type: application/octet-stream" \
+                -T "$file"); then
+            echo "$out" | jq -r '"uploaded " + .name + " (" + (.size | tostring) + " bytes)"'
+            return
+        fi
+        echo "publish-release.sh: upload of $name failed (try $try of $UPLOAD_TRIES): $out" >&2
+        [ "$try" -lt "$UPLOAD_TRIES" ] || return 1
+        try=$((try + 1))
+        sleep 30
+    done
 }
 
 work=$(mktemp -d)

@@ -98,7 +98,9 @@ fills one prerelease, `images-<run number>`, through `ci/publish-release.sh`:
 the live ISO (built once by the `live-iso` job, which the image jobs
 then install from), every image and, on dev runs, the FreeBSD live ISO
 (`freebsd-live-iso`), each with its `.sha256`. An asset may hold just under 2 GiB; a bigger file goes up in
-1900 MiB parts, joined with `cat` (the release text says how). Without the
+1900 MiB parts, joined with `cat` (the release text says how). Files are
+streamed from disk, not read into memory, and a failed upload is tried again
+up to three times (`UPLOAD_TRIES`), the broken asset removed first. Without the
 secret the step publishes nothing and the build still succeeds.
 
 At the end the `changelog` job (`ci/changelog.sh`) writes what changed into
