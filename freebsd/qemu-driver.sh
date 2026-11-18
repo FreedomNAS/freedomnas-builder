@@ -134,6 +134,20 @@ timeout=2400
 while kill -0 "$QEMU_PID" 2>/dev/null; do
     if [ "$i" -ge "$timeout" ]; then
         log "TIMEOUT after ${timeout}s waiting for guest poweroff"
+        if [ -n "${QEMU_SCREENDUMP:-}" ]; then
+            python3 - "$MON_SOCK" "$QEMU_SCREENDUMP" <<'PYEOF'
+import socket
+import sys
+import time
+
+s = socket.socket(socket.AF_UNIX)
+s.connect(sys.argv[1])
+s.sendall(f"screendump {sys.argv[2]}\n".encode())
+time.sleep(2)
+s.close()
+PYEOF
+            log "Screen saved to $QEMU_SCREENDUMP"
+        fi
         exit 1
     fi
     sleep 5
