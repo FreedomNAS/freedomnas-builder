@@ -53,7 +53,7 @@ has_route() {
 }
 
 tries=0
-until has_route && getent hosts codeberg.org >/dev/null; do
+until has_route && getent hosts github.com >/dev/null; do
     tries=$((tries + 1))
     if [ "$tries" -ge 60 ]; then
         log "no network after 2 minutes"

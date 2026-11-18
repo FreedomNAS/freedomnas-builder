@@ -27,7 +27,7 @@ SRC_REF="${SRC_REF:?SRC_REF is not set}"
 FNAS_CHANNEL="${FNAS_CHANNEL:-dev}"
 DRY_RUN="${DRY_RUN:-}"
 API="https://api.github.com/repos/$GH_REPO"
-FORGE="https://codeberg.org/FreedomNAS"
+FORGE="https://github.com/FreedomNAS"
 MARKER="freedomnas-refs:"
 MAX_LINES="${MAX_LINES:-40}"
 
