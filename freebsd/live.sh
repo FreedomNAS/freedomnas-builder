@@ -105,6 +105,10 @@ with open(disk, "rb") as src:
     src.seek(16 * 2048)
     pvd = src.read(2048)
     if pvd[0] != 1 or pvd[1:6] != b"CD001":
+        src.seek(0)
+        head = src.read(1000064)
+        if head.startswith(b"FNAS-GUEST-LOG\n"):
+            print(head[15:].split(b"\0", 1)[0].decode("utf-8", "replace"), file=sys.stderr)
         sys.exit("live.sh: no ISO 9660 volume on the scratch disk -- live-in-guest.sh failed")
     label = pvd[40:72].decode("ascii", "replace").strip()
     if label != volid:

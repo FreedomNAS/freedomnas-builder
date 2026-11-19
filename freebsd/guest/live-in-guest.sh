@@ -22,9 +22,13 @@
 # (/tmp/fnas-out): nullfs doesn't show mounts below it, so the ISO being
 # written is never part of the tree being read.
 #
-# Ends with `poweroff` either way; on failure nothing is written to the
-# scratch disk, and live.sh finds no volume there.
+# Ends with `poweroff` either way; on failure the scratch disk gets this
+# script's log instead of an ISO, behind the line FNAS-GUEST-LOG, and
+# live.sh prints it.
 set -eu
+
+GUEST_LOG=/tmp/live-in-guest.log
+exec >"$GUEST_LOG" 2>&1
 
 SEED=/fnas-seed
 WORK=/fnas-live
@@ -32,11 +36,18 @@ WORK=/fnas-live
 
 log() { echo "guest-live: $*"; }
 
+dump_log() {
+    [ -n "${DISK:-}" ] && [ -e "$DISK" ] || return 0
+    { echo FNAS-GUEST-LOG; tail -c 1000000 "$GUEST_LOG"; } | dd of="$DISK" bs=1m conv=sync 2>/dev/null || true
+    sync
+}
+
 fail() {
     log "FAILED: $*"
-    poweroff
     exit 1
 }
+
+trap 'status=$?; if [ "$status" -ne 0 ]; then dump_log; poweroff; fi' EXIT
 
 [ -n "${FREEBSD_RELEASE:-}" ] && [ -n "${INSTALL_ROOT:-}" ] && [ -n "${PACKAGES:-}" ] && [ -n "${VOLID:-}" ] \
     || fail "env.sh names no FREEBSD_RELEASE/INSTALL_ROOT/PACKAGES/VOLID"
