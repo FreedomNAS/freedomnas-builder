@@ -102,13 +102,17 @@ import sys
 
 disk, iso, volid = sys.argv[1:4]
 with open(disk, "rb") as src:
+    src.seek(-2 * 1048576, 2)
+    tail = src.read()
+    if tail.startswith(b"FNAS-GUEST-LOG\n"):
+        print("=== live-in-guest.sh log ===", file=sys.stderr)
+        print(tail[15:].split(b"\0", 1)[0].decode("utf-8", "replace"), file=sys.stderr)
+        print("=== end of the log ===", file=sys.stderr)
+    else:
+        print("live.sh: the guest wrote no log", file=sys.stderr)
     src.seek(16 * 2048)
     pvd = src.read(2048)
     if pvd[0] != 1 or pvd[1:6] != b"CD001":
-        src.seek(0)
-        head = src.read(1000064)
-        if head.startswith(b"FNAS-GUEST-LOG\n"):
-            print(head[15:].split(b"\0", 1)[0].decode("utf-8", "replace"), file=sys.stderr)
         sys.exit("live.sh: no ISO 9660 volume on the scratch disk -- live-in-guest.sh failed")
     label = pvd[40:72].decode("ascii", "replace").strip()
     if label != volid:

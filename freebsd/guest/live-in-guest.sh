@@ -22,9 +22,9 @@
 # (/tmp/fnas-out): nullfs doesn't show mounts below it, so the ISO being
 # written is never part of the tree being read.
 #
-# Ends with `poweroff` either way; on failure the scratch disk gets this
-# script's log instead of an ISO, behind the line FNAS-GUEST-LOG, and
-# live.sh prints it.
+# Ends with `poweroff` either way. The ISO goes to the start of the scratch
+# disk; this script's log always goes to its last 2 MiB, behind the line
+# FNAS-GUEST-LOG, and live.sh prints it whether the build worked or not.
 set -eu
 
 GUEST_LOG=/tmp/live-in-guest.log
@@ -38,7 +38,9 @@ log() { echo "guest-live: $*"; }
 
 dump_log() {
     [ -n "${DISK:-}" ] && [ -e "$DISK" ] || return 0
-    { echo FNAS-GUEST-LOG; tail -c 1000000 "$GUEST_LOG"; } | dd of="$DISK" bs=1m conv=sync 2>/dev/null || true
+    size="$(diskinfo "$DISK" | awk '{print $3}')"
+    { echo FNAS-GUEST-LOG; tail -c 2000000 "$GUEST_LOG"; } \
+        | dd of="$DISK" bs=1m oseek=$(( size / 1048576 - 2 )) conv=sync 2>/dev/null || true
     sync
 }
 
@@ -47,7 +49,7 @@ fail() {
     exit 1
 }
 
-trap 'status=$?; if [ "$status" -ne 0 ]; then dump_log; poweroff; fi' EXIT
+trap 'dump_log; poweroff' EXIT
 
 [ -n "${FREEBSD_RELEASE:-}" ] && [ -n "${INSTALL_ROOT:-}" ] && [ -n "${PACKAGES:-}" ] && [ -n "${VOLID:-}" ] \
     || fail "env.sh names no FREEBSD_RELEASE/INSTALL_ROOT/PACKAGES/VOLID"
@@ -246,10 +248,9 @@ dd if="$OUT/hybrid.img" of="$OUT/live.iso" bs=32k count=1 conv=notrunc 2>/dev/nu
 
 log "=== [6/6] Writing the ISO ($((ISO_SIZE / 1048576)) MiB) to $DISK ==="
 DISK_SIZE="$(diskinfo "$DISK" | awk '{print $3}')"
-[ "$ISO_SIZE" -le "$DISK_SIZE" ] || fail "the ISO ($ISO_SIZE bytes) doesn't fit on $DISK ($DISK_SIZE bytes)"
+[ "$ISO_SIZE" -le $(( DISK_SIZE - 2097152 )) ] || fail "the ISO ($ISO_SIZE bytes) and the log don't fit on $DISK ($DISK_SIZE bytes)"
 dd if="$OUT/live.iso" of="$DISK" bs=1m || fail "write the ISO to $DISK"
 sync
 
 umount "$ROOT/tmp/fnas-out" "$ROOT/tmp/fnas-src" || true
 log "done"
-poweroff
