@@ -21,6 +21,9 @@ on GitHub.
   version in `apt-main`, `pacman-main`, `xbps-main` and `pkg-15-main`, and
   for an existing release of that tag, before starting `build-images`.
 
+Every tag keeps its release. Of the dev releases only the newest stays:
+when every image of a dev build is out, `prune-dev` deletes the older ones.
+
 Either channel can be started by hand from the Actions tab of
 freedomnas-image (input `channel`).
 
