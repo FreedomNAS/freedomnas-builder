@@ -117,8 +117,7 @@ live/build.sh       Live installer ISO for every Linux edition (UEFI + BIOS)
 live/build-ssh.sh   The same ISO, reachable over SSH with one public key
 void/build.sh       Void image, installed by freedomnas-installer in the live ISO
 gentoo/build.sh     Gentoo image, the same way, from the newest openrc stage3
-docs/ci-setup.md    Token + self-hosted runner setup for maintainers
-.forgejo/workflows/ CI — see docs/ci-setup.md before expecting this to run
+docs/ci-setup.md    How the images are built on GitHub (freedomnas-image)
 ```
 
 ## Prerequisites for a local build
@@ -143,9 +142,8 @@ The Linux images need `qemu-system-x86_64`, `/dev/kvm`, `xorriso`,
 `rsync`, `zstd` and a live ISO built by `live/build.sh` from the same
 checkouts (`FNAS_LIVE_ISO` to point elsewhere). Nothing else runs on the
 build host and no root is needed: the installer partitions, bootstraps and
-installs inside the VM. Codeberg's hosted Forgejo Actions runners provide
-none of this (see [docs/ci-setup.md](docs/ci-setup.md)); run locally or on
-the self-hosted runner:
+installs inside the VM. GitHub's hosted runners have all of it (see
+[docs/ci-setup.md](docs/ci-setup.md)); locally:
 
 ```sh
 ./debian/build.sh [output-path] [image-size]        # defaults: debian/debian.img, 12G
@@ -168,9 +166,8 @@ pkg repository of its channel.
 (`FREEBSD_BACKEND=qemu`, or VirtualBox) with `xorriso` and `/dev/kvm`, since
 FreeBSD's makefs/mkimg/pkg don't exist on Linux. With QEMU it downloads
 FreeBSD's own VM image of the target release once and keeps it in
-`FNAS_CACHE_DIR` (default `freebsd/.cache/`; CI uses
-`/var/cache/freedomnas-ci/freebsd` on the runner, shared with
-freedomnas-freebsd's package builds); `FREEBSD_BUILD_ENV=mfsbsd` uses an
+`FNAS_CACHE_DIR` (default `freebsd/.cache/`; CI keeps it with
+`actions/cache`); `FREEBSD_BUILD_ENV=mfsbsd` uses an
 mfsBSD live ISO instead (`MFSBSD_ISO_URL`).
 
 Booted as a USB stick in QEMU, FreeBSD needs `-device usb-ehci`: with
@@ -194,10 +191,10 @@ point Raspberry Pi Imager or Rufus at the `.zst` file directly.
 ## How CI triggers a build
 
 `freedomnas-core`, `freedomnas-profiles`, and `freedomnas-webui` each have
-a `.forgejo/workflows/notify-image-builder.yml` that fires this repo's
-`workflow_dispatch` on every push to `main`. See
-[docs/ci-setup.md](docs/ci-setup.md) for the token and self-hosted runner
-this requires.
+a `.github/workflows/notify-image-builder.yml` that asks
+[freedomnas-image](https://github.com/FreedomNAS/freedomnas-image) for the
+release images on every push to `main`. See
+[docs/ci-setup.md](docs/ci-setup.md).
 
 ## License
 

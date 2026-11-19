@@ -1,3 +1,4 @@
+# Switched off: the images are built by FreedomNAS/freedomnas-image on GitHub.
 name: build-images
 
 # Triggered manually, or by core/profiles/webui's notify-image-builder.yml
