@@ -10,16 +10,19 @@ on GitHub.
 ## Channels
 
 - **dev**: every repository's `dev` branch, installing from the `dev`
-  package repositories.
+  package repositories. Built every Monday at 02:00 UTC.
 - **main**: the newest release tag `vX.Y.Z` of freedomnas-core, the same
-  tag in every repository; the overlay is always `main`.
+  tag in every repository; the overlay is always `main`. Built once per
+  tag, when every package repository has published that version: each
+  package repository's `main` build ends by sending freedomnas-image a
+  `packages-published` dispatch (organization secret
+  `PACKAGES_DISPATCH_TOKEN`, which must reach freedomnas-image), and its
+  `release-check` workflow (also daily) looks for `freedomnas-core` of that
+  version in `apt-main`, `pacman-main`, `xbps-main` and `pkg-15-main`, and
+  for an existing release of that tag, before starting `build-images`.
 
-Start a run by hand from the Actions tab of freedomnas-image (input
-`channel`). A push to `main` of core, profiles or webui starts the `main`
-build through their `notify-image-builder` workflow, a
-`repository_dispatch` of type `build-images` sent with the organization
-secret `PACKAGES_DISPATCH_TOKEN`; that token must have access to
-freedomnas-image as well as to the package repositories.
+Either channel can be started by hand from the Actions tab of
+freedomnas-image (input `channel`).
 
 ## Jobs
 

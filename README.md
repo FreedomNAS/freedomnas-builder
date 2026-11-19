@@ -190,10 +190,9 @@ point Raspberry Pi Imager or Rufus at the `.zst` file directly.
 
 ## How CI triggers a build
 
-`freedomnas-core`, `freedomnas-profiles`, and `freedomnas-webui` each have
-a `.github/workflows/notify-image-builder.yml` that asks
-[freedomnas-image](https://github.com/FreedomNAS/freedomnas-image) for the
-release images on every push to `main`. See
+[freedomnas-image](https://github.com/FreedomNAS/freedomnas-image) builds
+the `dev` images every Monday and the release images once per tag, when
+every package repository has published that version. See
 [docs/ci-setup.md](docs/ci-setup.md).
 
 ## License
