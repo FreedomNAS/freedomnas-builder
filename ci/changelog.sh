@@ -85,8 +85,10 @@ kernel_line=""
 printf '%s\n' "$REPOS" > "$work/repos"
 while IFS=: read -r repo title; do
     dir="$work/$repo"
-    if ! git clone -q --bare --filter=blob:none --single-branch --branch "$ref_name" "$FORGE/$repo.git" "$dir" 2>/dev/null; then
-        git clone -q --bare --filter=blob:none --single-branch --branch "$fallback" "$FORGE/$repo.git" "$dir" 2>/dev/null || continue
+    repo_url="$FORGE/$repo"
+    [ "$repo" != freedomnas-image-builder ] || repo_url="$FORGE/freedomnas-builder"
+    if ! git clone -q --bare --filter=blob:none --single-branch --branch "$ref_name" "$repo_url.git" "$dir" 2>/dev/null; then
+        git clone -q --bare --filter=blob:none --single-branch --branch "$fallback" "$repo_url.git" "$dir" 2>/dev/null || continue
     fi
     head=$(git -C "$dir" rev-parse HEAD)
     refs="$refs $repo=$head"
@@ -101,7 +103,7 @@ while IFS=: read -r repo title; do
     count=$(printf '%s\n' "$log" | wc -l)
     shown=$(printf '%s\n' "$log" | head -n "$MAX_LINES")
     [ "$count" -le "$MAX_LINES" ] || shown="$shown
-- … and $((count - MAX_LINES)) more: $FORGE/$repo/compare/$old...$head"
+- … and $((count - MAX_LINES)) more: $repo_url/compare/$old...$head"
     changes="$changes
 ### $title
 
